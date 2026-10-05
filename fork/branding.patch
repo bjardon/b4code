@@ -82,6 +82,36 @@ index 7fc57cf0d0..bba33fc308 100644
  export const APP_STAGE_LABEL =
    injectedDesktopAppBranding?.stageLabel ??
    HOSTED_APP_CHANNEL_LABEL ??
+diff --git a/apps/web/src/components/T3Wordmark.tsx b/apps/web/src/components/T3Wordmark.tsx
+index d0882a5dd6..bc78407497 100644
+--- a/apps/web/src/components/T3Wordmark.tsx
++++ b/apps/web/src/components/T3Wordmark.tsx
+@@ -2,9 +2,10 @@ import type { SVGProps } from "react";
+ 
+ export function T3Wordmark(props: SVGProps<SVGSVGElement>) {
+   return (
+-    <svg {...props} viewBox="15.5309 37 94.3941 56.96" xmlns="http://www.w3.org/2000/svg">
++    <svg {...props} viewBox="14 37 98 56" xmlns="http://www.w3.org/2000/svg">
+       <path
+-        d="M33.4509 93V47.56H15.5309V37H64.3309V47.56H46.4109V93H33.4509ZM86.7253 93.96C82.832 93.96 78.9653 93.4533 75.1253 92.44C71.2853 91.3733 68.032 89.88 65.3653 87.96L70.4053 78.04C72.5386 79.5867 75.0186 80.8133 77.8453 81.72C80.672 82.6267 83.5253 83.08 86.4053 83.08C89.6586 83.08 92.2186 82.44 94.0853 81.16C95.952 79.88 96.8853 78.12 96.8853 75.88C96.8853 73.7467 96.0586 72.0667 94.4053 70.84C92.752 69.6133 90.0853 69 86.4053 69H80.4853V60.44L96.0853 42.76L97.5253 47.4H68.1653V37H107.365V45.4L91.8453 63.08L85.2853 59.32H89.0453C95.9253 59.32 101.125 60.8667 104.645 63.96C108.165 67.0533 109.925 71.0267 109.925 75.88C109.925 79.0267 109.099 81.9867 107.445 84.76C105.792 87.48 103.259 89.6933 99.8453 91.4C96.432 93.1067 92.0586 93.96 86.7253 93.96Z"
++        d="M14 37H38.5C50.5 37 56.5 42.5 56.5 50.5C56.5 55.5 53.5 59.5 49 61.5C55 63 58.5 67.5 58.5 74.5C58.5 85 51 93 37.5 93H14ZM27 47V58H37C41.5 58 43.5 56 43.5 52.5C43.5 49 41.5 47 37 47ZM27 69V83H38C43 83 45.5 80.5 45.5 76C45.5 71.5 43 69 38 69ZM90 37H105V70H112V81H105V93H92V81H66V71ZM92 55V70H81.4Z"
++        fillRule="evenodd"
+         fill="currentColor"
+       />
+     </svg>
+diff --git a/apps/web/src/components/sidebar/SidebarChrome.tsx b/apps/web/src/components/sidebar/SidebarChrome.tsx
+index ce2ef26295..7dd3c9adc0 100644
+--- a/apps/web/src/components/sidebar/SidebarChrome.tsx
++++ b/apps/web/src/components/sidebar/SidebarChrome.tsx
+@@ -126,7 +126,7 @@ function SidebarBrandMark({ onBackdrop }: { onBackdrop: boolean }) {
+   return (
+     // Center the visible capitals, without the font's ascender/descender space.
+     <span className="inline-flex min-w-0 items-baseline gap-1 text-sm font-medium tracking-tight">
+-      <T3Wordmark aria-label="T3" className="h-[1cap] w-auto shrink-0" />
++      <T3Wordmark aria-label="B4" className="h-[1cap] w-auto shrink-0" />
+       <span
+         className={cn(
+           "truncate [text-box:trim-both_cap_alphabetic]",
 diff --git a/scripts/build-desktop-artifact.ts b/scripts/build-desktop-artifact.ts
 index 9b2e26c8f4..56bd9b58e9 100644
 --- a/scripts/build-desktop-artifact.ts
