@@ -98,6 +98,11 @@ function deploy() {
   if (read("git", ["branch", "--show-current"]) !== "main") fail("check out main first.");
   run("git", ["fetch", "origin"]);
   run("git", ["reset", "--hard", "origin/main"]);
+  // The reset may have changed this script, so the rest runs from the new copy.
+  run(process.execPath, [NodePath.join(repoRoot, "fork/b4.ts"), "__build"]);
+}
+
+function build() {
   // Branding is a packaging step, so main keeps upstream's code and tests. The
   // patch stays applied until the next deploy resets it, and it fails loudly
   // when an upstream sync moves the lines it touches.
@@ -276,7 +281,13 @@ function pair() {
   run(process.execPath, [serverEntry, "pair", "--base-dir", home, ...process.argv.slice(3)]);
 }
 
-const commands: Record<string, () => void> = { sync, deploy, service: installService, pair };
+const commands: Record<string, () => void> = {
+  sync,
+  deploy,
+  __build: build,
+  service: installService,
+  pair,
+};
 const command = commands[process.argv[2] ?? ""];
 if (command === undefined) fail("usage: node fork/b4.ts <sync|deploy|service|pair>");
 command();
