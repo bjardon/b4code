@@ -15,7 +15,7 @@ The root `AGENTS.md` is upstream's guide and stays the guide for the code itself
 This file wins where the two conflict:
 
 - **Bruno is the maintainer.** Read "we", "us", and "maintainers" in upstream's guide as Bruno.
-- **Surfaces.** Bruno runs the official T3 Code desktop and mobile apps as clients and the fork as a server. Server changes reach every client. UI changes only appear in the fork's web UI (the browser at the server's address) until the fork ships its own desktop build. Say which surface a change lands on. Providers in use are Claude, Codex, and Cursor. Other adapters don't need a decision.
+- **Surfaces.** The fork runs as a server, and B4 Code (the fork's desktop build, client only) and the browser are its own clients. The official T3 Code desktop and mobile apps connect too. Server changes reach every client. UI changes only appear in B4 Code and the browser. Say which surface a change lands on. Providers in use are Claude, Codex, and Cursor. Other adapters don't need a decision.
 - **Docs.** Fork knowledge goes in `fork/` or the devlog, never `docs/`. Changing upstream's docs only creates rebase conflicts.
 - **Pull requests.** Nothing goes to `pingdotgg/t3code`. The fork ships by landing on `main`, not through pull requests.
 
@@ -24,6 +24,7 @@ This file wins where the two conflict:
 `main` is `upstream/main` plus the fork's commits on top, and `node fork/b4.ts sync` rebases it. Every edited upstream line is a possible conflict on the next sync.
 
 - Put fork-only code and tooling in `fork/` when it can live there.
+- Branding and desktop identity live in `fork/branding.patch`, which `deploy` applies at build time. Never commit them to upstream files. See `fork/README.md` for regenerating the patch.
 - When an upstream file must change, make the smallest edit that works. Prefer adding a new file and a one-line hook over rewriting shared code.
 - Write the code to upstream's standard: strict types, its lint rules, focused tests for backend behavior. Fork code that fights upstream's conventions breaks on the next sync.
 - When a sync conflicts, keep upstream's version and reapply the fork's intent on top of it. Record a conflict in the devlog only when it changed how the fork works.
@@ -33,13 +34,14 @@ This file wins where the two conflict:
 - `~/.t3` belongs to the official app and Bruno's work setup. Never start a server against it or write to it.
 - `~/.b4-code/userdata` is the live b4-code database. Upstream's rules for `~/.t3/userdata` apply to it too: copying from it is fine, writing to it is not.
 - `~/.b4-code/src` is the deploy clone. Never develop in it. `deploy` resets it hard.
+- `~/.b4-code/desktop` and `~/Library/Application Support/b4code` belong to the installed B4 Code app.
 - Never push to `upstream`.
 
 ## Build, run, verify
 
 - Develop in a worktree with upstream's dev workflow (`vp i`, `vp run dev`). Worktree state stays in its own `.t3`.
 - Verify with upstream's rules: targeted `vp test run`, lint, and typecheck for the files you touched. For `fork/b4.ts`, typecheck it against `tsconfig.base.json` and run `vp lint fork/b4.ts`.
-- The running server is `http://127.0.0.1:3780` on the Mac (launchd agent `dev.b4code.server`, logs in `~/.b4-code/logs/service.log`).
+- The running server is `http://127.0.0.1:3780` on the Mac (launchd agent `dev.b4code.server`, logs in `~/.b4-code/logs/service.log`). The desktop client is `/Applications/B4 Code.app`.
 
 ## Wrap-up
 

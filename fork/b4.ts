@@ -5,7 +5,8 @@
  * See fork/README.md for the layout and the first-time setup.
  *
  *   node fork/b4.ts sync      rebase main onto upstream/main and push it (dev checkout)
- *   node fork/b4.ts deploy    reset to origin/main, install, build, restart (deploy checkout)
+ *   node fork/b4.ts deploy    reset to origin/main, brand, build, restart; on macOS also
+ *                             install the B4 Code desktop client (deploy checkout)
  *   node fork/b4.ts service   install or refresh the background service
  *   node fork/b4.ts pair      print a one-time pairing link for a new client
  *
@@ -28,6 +29,11 @@ const serverEntry = NodePath.join(repoRoot, "apps/server/dist/bin.mjs");
 // A standalone script with no Effect runtime to inject the host platform.
 // oxlint-disable-next-line t3code/no-global-process-runtime
 const isMac = NodeOS.platform() === "darwin";
+// oxlint-disable-next-line t3code/no-global-process-runtime
+const macArch = NodeOS.arch() === "arm64" ? "arm64" : "x64";
+
+const DESKTOP_APP_NAME = "B4 Code";
+const installedDesktopApp = `/Applications/${DESKTOP_APP_NAME}.app`;
 
 const LAUNCHD_LABEL = "dev.b4code.server";
 const launchdPlistPath = NodePath.join(
@@ -83,19 +89,84 @@ function sync() {
 }
 
 function deploy() {
-  // `reset --hard` below discards local commits, so it only runs in the checkout
+  // `reset --hard` below discards local changes, so it only runs in the checkout
   // reserved for deploys, never in one used for development.
   const deployCheckout = NodePath.join(home, "src");
   if (repoRoot !== deployCheckout) {
     fail(`deploy only runs from ${deployCheckout}; this checkout is ${repoRoot}.`);
   }
-  requireCleanMain();
+  if (read("git", ["branch", "--show-current"]) !== "main") fail("check out main first.");
   run("git", ["fetch", "origin"]);
   run("git", ["reset", "--hard", "origin/main"]);
+  // Branding is a packaging step, so main keeps upstream's code and tests. The
+  // patch stays applied until the next deploy resets it, and it fails loudly
+  // when an upstream sync moves the lines it touches.
+  run("git", ["apply", "fork/branding.patch"]);
   run("vp", ["i"]);
-  run("vp", ["run", "--filter", "t3", "build"]);
+  if (isMac) {
+    run("vp", ["run", "build:desktop"]);
+    installDesktopApp();
+  } else {
+    run("vp", ["run", "--filter", "t3", "build"]);
+  }
   if (serviceInstalled()) restartService();
   else console.log("b4: built. Run `node fork/b4.ts service` to start it in the background.");
+}
+
+function sleep(milliseconds: number) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
+}
+
+function desktopAppRunning(): boolean {
+  return (
+    NodeChildProcess.spawnSync("pgrep", ["-x", DESKTOP_APP_NAME], { stdio: "ignore" }).status === 0
+  );
+}
+
+function installDesktopApp() {
+  const outputDir = NodePath.join(home, "desktop-build");
+  NodeFS.rmSync(outputDir, { recursive: true, force: true });
+  run(process.execPath, [
+    "scripts/build-desktop-artifact.ts",
+    "--platform",
+    "mac",
+    "--target",
+    "zip",
+    "--arch",
+    macArch,
+    "--skip-build",
+    "--output-dir",
+    outputDir,
+  ]);
+  const archive = NodeFS.readdirSync(outputDir).find((name) => name.endsWith(".zip"));
+  if (archive === undefined) fail(`no app archive in ${outputDir}.`);
+  const unpacked = NodePath.join(outputDir, "unpacked");
+  run("ditto", ["-x", "-k", NodePath.join(outputDir, archive), unpacked]);
+  const builtApp = NodePath.join(unpacked, `${DESKTOP_APP_NAME}.app`);
+  if (!NodeFS.existsSync(builtApp)) fail(`${builtApp} is missing from the archive.`);
+
+  const firstInstall = !NodeFS.existsSync(installedDesktopApp);
+  const wasRunning = desktopAppRunning();
+  if (wasRunning) {
+    run("osascript", ["-e", `tell application "${DESKTOP_APP_NAME}" to quit`]);
+    for (let attempt = 0; attempt < 50 && desktopAppRunning(); attempt++) sleep(200);
+    if (desktopAppRunning()) fail(`${DESKTOP_APP_NAME} did not quit; close it and deploy again.`);
+  }
+  NodeFS.rmSync(installedDesktopApp, { recursive: true, force: true });
+  run("ditto", [builtApp, installedDesktopApp]);
+  // Ad-hoc signature, as respawken does. A local build carries no quarantine
+  // flag, so Gatekeeper opens it without a prompt.
+  run("codesign", ["--force", "--deep", "--sign", "-", installedDesktopApp]);
+
+  // The app is a client of the server above. Starting with its local environment
+  // off keeps it from running a second server the first time it opens.
+  const settingsPath = NodePath.join(home, "desktop/userdata/desktop-settings.json");
+  if (!NodeFS.existsSync(settingsPath)) {
+    NodeFS.mkdirSync(NodePath.dirname(settingsPath), { recursive: true });
+    NodeFS.writeFileSync(settingsPath, `${JSON.stringify({ localEnvironmentEnabled: false })}\n`);
+  }
+  if (firstInstall || wasRunning) run("open", [installedDesktopApp]);
+  console.log(`b4: installed ${installedDesktopApp}`);
 }
 
 function serviceInstalled(): boolean {
@@ -169,7 +240,7 @@ function installService() {
         },
       );
       if (loaded.status !== 0) break;
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
+      sleep(200);
     }
     run("launchctl", ["bootstrap", domain, launchdPlistPath]);
     console.log(`b4: running on http://${host}:${port}, logs in ${logPath}`);
