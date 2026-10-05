@@ -2,6 +2,8 @@
 
 b4-code is Bruno's fork of [T3 Code](https://github.com/pingdotgg/t3code). It runs as a personal server next to the official app, which stays on the upstream release for work.
 
+Build status lives in [TODO.md](TODO.md). Decisions, learnings, and dead ends live in the [devlog](https://app.notion.com/p/3f0d5cfe81be80dba8d0e54ca07573b4).
+
 ## Branches
 
 `main` is upstream's `main` plus the fork's commits on top. Upstream never touches `fork/`, so keep fork tooling here and keep edits to upstream files small. Every edited upstream line can conflict on the next rebase.
