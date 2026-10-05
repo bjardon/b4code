@@ -1,37 +1,3 @@
-diff --git a/apps/web/index.html b/apps/web/index.html
-index c2d1647424..4686f8aee7 100644
---- a/apps/web/index.html
-+++ b/apps/web/index.html
-@@ -477,13 +477,13 @@
-         cursor: pointer;
-       }
-     </style>
--    <title>T3 Code (Alpha)</title>
-+    <title>B4 Code (Alpha)</title>
-   </head>
-   <body>
-     <div id="root">
-       <div id="boot-shell">
--        <div id="boot-shell-card" aria-label="T3 Code splash screen">
--          <img id="boot-shell-logo" src="/apple-touch-icon.png" alt="T3 Code" />
-+        <div id="boot-shell-card" aria-label="B4 Code splash screen">
-+          <img id="boot-shell-logo" src="/apple-touch-icon.png" alt="B4 Code" />
-         </div>
-       </div>
-     </div>
-diff --git a/apps/web/src/branding.ts b/apps/web/src/branding.ts
-index 7fc57cf0d0..bba33fc308 100644
---- a/apps/web/src/branding.ts
-+++ b/apps/web/src/branding.ts
-@@ -16,7 +16,7 @@ export const HOSTED_APP_CHANNEL =
-   hostedAppChannel === "latest" || hostedAppChannel === "nightly" ? hostedAppChannel : null;
- export const HOSTED_APP_CHANNEL_LABEL =
-   HOSTED_APP_CHANNEL === "nightly" ? "Nightly" : HOSTED_APP_CHANNEL === "latest" ? "Latest" : null;
--export const APP_BASE_NAME = injectedDesktopAppBranding?.baseName ?? "T3 Code";
-+export const APP_BASE_NAME = injectedDesktopAppBranding?.baseName ?? "B4 Code";
- export const APP_STAGE_LABEL =
-   injectedDesktopAppBranding?.stageLabel ??
-   HOSTED_APP_CHANNEL_LABEL ??
 diff --git a/apps/desktop/package.json b/apps/desktop/package.json
 index ddef3ca9eb..c7e42b19ca 100644
 --- a/apps/desktop/package.json
@@ -82,8 +48,42 @@ index 3306b244dc..abf4c3fe7a 100644
      const destinationPath = path.join(input.appDataDirectory, names.current);
      const legacyPath = path.join(input.appDataDirectory, names.legacy);
      const inspect = (resourcePath: string) =>
+diff --git a/apps/web/index.html b/apps/web/index.html
+index c2d1647424..4686f8aee7 100644
+--- a/apps/web/index.html
++++ b/apps/web/index.html
+@@ -477,13 +477,13 @@
+         cursor: pointer;
+       }
+     </style>
+-    <title>T3 Code (Alpha)</title>
++    <title>B4 Code (Alpha)</title>
+   </head>
+   <body>
+     <div id="root">
+       <div id="boot-shell">
+-        <div id="boot-shell-card" aria-label="T3 Code splash screen">
+-          <img id="boot-shell-logo" src="/apple-touch-icon.png" alt="T3 Code" />
++        <div id="boot-shell-card" aria-label="B4 Code splash screen">
++          <img id="boot-shell-logo" src="/apple-touch-icon.png" alt="B4 Code" />
+         </div>
+       </div>
+     </div>
+diff --git a/apps/web/src/branding.ts b/apps/web/src/branding.ts
+index 7fc57cf0d0..bba33fc308 100644
+--- a/apps/web/src/branding.ts
++++ b/apps/web/src/branding.ts
+@@ -16,7 +16,7 @@ export const HOSTED_APP_CHANNEL =
+   hostedAppChannel === "latest" || hostedAppChannel === "nightly" ? hostedAppChannel : null;
+ export const HOSTED_APP_CHANNEL_LABEL =
+   HOSTED_APP_CHANNEL === "nightly" ? "Nightly" : HOSTED_APP_CHANNEL === "latest" ? "Latest" : null;
+-export const APP_BASE_NAME = injectedDesktopAppBranding?.baseName ?? "T3 Code";
++export const APP_BASE_NAME = injectedDesktopAppBranding?.baseName ?? "B4 Code";
+ export const APP_STAGE_LABEL =
+   injectedDesktopAppBranding?.stageLabel ??
+   HOSTED_APP_CHANNEL_LABEL ??
 diff --git a/scripts/build-desktop-artifact.ts b/scripts/build-desktop-artifact.ts
-index 9b2e26c8f4..d617f658be 100644
+index 9b2e26c8f4..56bd9b58e9 100644
 --- a/scripts/build-desktop-artifact.ts
 +++ b/scripts/build-desktop-artifact.ts
 @@ -54,7 +54,7 @@ import { Command, Flag } from "effect/unstable/cli";
@@ -117,3 +117,12 @@ index 9b2e26c8f4..d617f658be 100644
          },
        ],
        desktop: {
+@@ -3692,7 +3692,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
+       ? path.join(stageAppDir, WINDOWS_SERVER_RESOURCE_SOURCE_DIR, WINDOWS_SERVER_ASAR_RESOURCE)
+       : undefined;
+   const stagePackageJson: StagePackageJson = {
+-    name: "t3code",
++    name: "b4code",
+     version: appVersion,
+     buildVersion: appVersion,
+     t3codeCommitHash: commitHash,
