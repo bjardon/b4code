@@ -9,11 +9,13 @@
  *                             install the B4 Code desktop client (deploy checkout)
  *   node fork/b4.ts service   install or refresh the background service
  *   node fork/b4.ts pair      print a one-time pairing link for a new client
+ *   node fork/b4.ts signing   create the self-signed identity that signs B4 Code (macOS)
  *
  * B4_HOME (default ~/.b4-code), B4_PORT (3780), and B4_HOST (127.0.0.1) pick the
  * data directory and bind address. `service` bakes them into the unit.
  */
 import * as NodeChildProcess from "node:child_process";
+import * as NodeCrypto from "node:crypto";
 import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
@@ -33,6 +35,7 @@ const isMac = NodeOS.platform() === "darwin";
 const macArch = NodeOS.arch() === "arm64" ? "arm64" : "x64";
 
 const DESKTOP_APP_NAME = "B4 Code";
+const SIGNING_IDENTITY = "b4code local";
 const installedDesktopApp = `/Applications/${DESKTOP_APP_NAME}.app`;
 
 const LAUNCHD_LABEL = "dev.b4code.server";
@@ -159,9 +162,13 @@ function installDesktopApp() {
   }
   NodeFS.rmSync(installedDesktopApp, { recursive: true, force: true });
   run("ditto", [builtApp, installedDesktopApp]);
-  // Ad-hoc signature, as respawken does. A local build carries no quarantine
-  // flag, so Gatekeeper opens it without a prompt.
-  run("codesign", ["--force", "--deep", "--sign", "-", installedDesktopApp]);
+  // A local build carries no quarantine flag, so Gatekeeper opens it either way.
+  // The stable identity keeps the keychain's "Always Allow" valid across deploys;
+  // an ad-hoc signature changes with every build and prompts again.
+  const identity = signingIdentityExists() ? SIGNING_IDENTITY : "-";
+  if (identity === "-")
+    console.log("b4: no signing identity, signing ad-hoc. Run `node fork/b4.ts signing`.");
+  run("codesign", ["--force", "--deep", "--sign", identity, installedDesktopApp]);
 
   // The app is a client of the server above. Starting with its local environment
   // off keeps it from running a second server the first time it opens.
@@ -277,6 +284,85 @@ function installService() {
   console.log(`b4: running on http://${host}:${port}, logs via journalctl --user -u b4-code`);
 }
 
+function signingIdentityExists(): boolean {
+  const result = NodeChildProcess.spawnSync(
+    "security",
+    ["find-certificate", "-c", SIGNING_IDENTITY],
+    {
+      stdio: "ignore",
+    },
+  );
+  return result.status === 0;
+}
+
+function createSigningIdentity() {
+  if (!isMac) fail("the signing identity is macOS only.");
+  if (signingIdentityExists()) {
+    console.log(`b4: "${SIGNING_IDENTITY}" already exists in the login keychain.`);
+    return;
+  }
+  const workDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "b4-signing-"));
+  process.on("exit", () => NodeFS.rmSync(workDir, { recursive: true, force: true }));
+  const file = (name: string) => NodePath.join(workDir, name);
+  NodeFS.writeFileSync(
+    file("openssl.cnf"),
+    [
+      "[req]",
+      "distinguished_name = dn",
+      "[dn]",
+      "[codesign]",
+      "basicConstraints = critical, CA:false",
+      "keyUsage = critical, digitalSignature",
+      "extendedKeyUsage = critical, codeSigning",
+      "",
+    ].join("\n"),
+  );
+  run("/usr/bin/openssl", [
+    "req",
+    "-x509",
+    "-newkey",
+    "rsa:2048",
+    "-nodes",
+    "-days",
+    "3650",
+    "-subj",
+    `/CN=${SIGNING_IDENTITY}`,
+    "-config",
+    file("openssl.cnf"),
+    "-extensions",
+    "codesign",
+    "-keyout",
+    file("key.pem"),
+    "-out",
+    file("cert.pem"),
+  ]);
+  // The bundle only carries the key into the keychain and is deleted on exit.
+  const bundlePassword = NodeCrypto.randomBytes(16).toString("hex");
+  run("/usr/bin/openssl", [
+    "pkcs12",
+    "-export",
+    "-inkey",
+    file("key.pem"),
+    "-in",
+    file("cert.pem"),
+    "-out",
+    file("identity.p12"),
+    "-passout",
+    `pass:${bundlePassword}`,
+  ]);
+  run("security", [
+    "import",
+    file("identity.p12"),
+    "-k",
+    NodePath.join(NodeOS.homedir(), "Library/Keychains/login.keychain-db"),
+    "-P",
+    bundlePassword,
+    "-T",
+    "/usr/bin/codesign",
+  ]);
+  console.log(`b4: created "${SIGNING_IDENTITY}". The next deploy signs B4 Code with it.`);
+}
+
 function pair() {
   run(process.execPath, [serverEntry, "pair", "--base-dir", home, ...process.argv.slice(3)]);
 }
@@ -287,7 +373,8 @@ const commands: Record<string, () => void> = {
   __build: build,
   service: installService,
   pair,
+  signing: createSigningIdentity,
 };
 const command = commands[process.argv[2] ?? ""];
-if (command === undefined) fail("usage: node fork/b4.ts <sync|deploy|service|pair>");
+if (command === undefined) fail("usage: node fork/b4.ts <sync|deploy|service|pair|signing>");
 command();
