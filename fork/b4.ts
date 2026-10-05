@@ -124,7 +124,9 @@ function installService() {
   const program = [process.execPath, serverEntry, "serve", "--port", String(port), "--host", host];
   // The service inherits this shell's PATH so it finds claude, codex, and agent.
   const environment = { T3CODE_HOME: home, PATH: process.env.PATH ?? "/usr/bin:/bin" };
+  // The server logs a startup pairing token, so only this user may read the home.
   NodeFS.mkdirSync(NodePath.join(home, "logs"), { recursive: true });
+  NodeFS.chmodSync(home, 0o700);
 
   if (isMac) {
     const logPath = NodePath.join(home, "logs/service.log");
