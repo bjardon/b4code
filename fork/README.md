@@ -20,6 +20,8 @@ It rebases `main` onto `upstream/main` and force-pushes it with a lease.
 
 The B4 Code name and the desktop app's identity live in `branding.patch`, not in commits to upstream files. `main` keeps upstream's code and tests, and `deploy` applies the patch in the deploy clone before building. The patch covers the web app's name and title, plus the desktop app's name, bundle id (`dev.b4code.desktop`), URL schemes (`b4code`), Electron profile (`b4code`), and data home (`~/.b4-code/desktop`).
 
+The icon lives in `icons/`. `deploy` copies one rendered set over upstream's macOS icon, favicons, and splash logo, picked by `APP_ICON` in `b4.ts`. `sticker` is live and `terminal` is a spare. After editing an icon SVG, run `node fork/icons/render.ts <name>` on a Mac with Chrome and ImageMagick, and commit the output.
+
 When a sync moves the lines it touches, `deploy` stops at `git apply`. Apply the old patch by hand in a development checkout, fix the conflicts, and regenerate it with `git diff > fork/branding.patch`.
 
 ## Running the server

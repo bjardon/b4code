@@ -38,6 +38,28 @@ const DESKTOP_APP_NAME = "B4 Code";
 const SIGNING_IDENTITY = "b4code local";
 const installedDesktopApp = `/Applications/${DESKTOP_APP_NAME}.app`;
 
+// The rendered set in fork/icons that `deploy` copies over upstream's icons.
+// terminal is a ready alternative. See fork/icons/render.ts.
+const APP_ICON = "sticker";
+// The desktop build reads the production assets. The server build stamps the
+// development web icons into its bundled client.
+const APP_ICON_TARGETS = {
+  "macos-1024.png": ["assets/prod/black-macos-1024.png"],
+  "favicon.ico": ["assets/prod/t3-black-web-favicon.ico", "assets/dev/blueprint-web-favicon.ico"],
+  "favicon-16x16.png": [
+    "assets/prod/t3-black-web-favicon-16x16.png",
+    "assets/dev/blueprint-web-favicon-16x16.png",
+  ],
+  "favicon-32x32.png": [
+    "assets/prod/t3-black-web-favicon-32x32.png",
+    "assets/dev/blueprint-web-favicon-32x32.png",
+  ],
+  "apple-touch-180.png": [
+    "assets/prod/t3-black-web-apple-touch-180.png",
+    "assets/dev/blueprint-web-apple-touch-180.png",
+  ],
+} as const;
+
 const LAUNCHD_LABEL = "dev.b4code.server";
 const launchdPlistPath = NodePath.join(
   NodeOS.homedir(),
@@ -110,6 +132,7 @@ function build() {
   // patch stays applied until the next deploy resets it, and it fails loudly
   // when an upstream sync moves the lines it touches.
   run("git", ["apply", "fork/branding.patch"]);
+  applyAppIcon();
   run("vp", ["i"]);
   if (isMac) {
     run("vp", ["run", "build:desktop"]);
@@ -119,6 +142,18 @@ function build() {
   }
   if (serviceInstalled()) restartService();
   else console.log("b4: built. Run `node fork/b4.ts service` to start it in the background.");
+}
+
+function applyAppIcon() {
+  const iconDir = NodePath.join(repoRoot, "fork/icons", APP_ICON);
+  for (const [file, targets] of Object.entries(APP_ICON_TARGETS)) {
+    for (const target of targets) {
+      const targetPath = NodePath.join(repoRoot, target);
+      // Upstream renamed or moved it. Copying anyway would ship the T3 icon.
+      if (!NodeFS.existsSync(targetPath)) fail(`${target} is missing; update APP_ICON_TARGETS.`);
+      NodeFS.copyFileSync(NodePath.join(iconDir, file), targetPath);
+    }
+  }
 }
 
 function sleep(milliseconds: number) {
