@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="100 100 824 824">
+  <defs>
+    <clipPath id="body"><rect x="100" y="100" width="824" height="824" rx="185"/></clipPath>
+    <radialGradient id="crt" cx=".5" cy=".45" r=".7">
+      <stop offset="0" stop-color="#0B3B37"/>
+      <stop offset="1" stop-color="#021412"/>
+    </radialGradient>
+    <pattern id="scanlines" width="12" height="12" patternUnits="userSpaceOnUse">
+      <rect width="12" height="5" fill="#000" opacity=".28"/>
+    </pattern>
+    <filter id="glow" filterUnits="userSpaceOnUse" x="100" y="100" width="824" height="824">
+      <feGaussianBlur stdDeviation="14" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <g clip-path="url(#body)">
+    <rect x="100" y="100" width="824" height="824" fill="url(#crt)"/>
+    <g filter="url(#glow)" fill="#5EEAD4">
+      <path d="M235 440L315 512L235 584" fill="none" stroke="#5EEAD4" stroke-width="40" stroke-linecap="square"/>
+      <!-- B4, drawn in the T3 mark's 128-unit space and weight. -->
+      <path fill-rule="evenodd" transform="translate(520 512) scale(3.2) translate(-63 -65)" d="M14 37H38.5C50.5 37 56.5 42.5 56.5 50.5C56.5 55.5 53.5 59.5 49 61.5C55 63 58.5 67.5 58.5 74.5C58.5 85 51 93 37.5 93H14ZM27 47V58H37C41.5 58 43.5 56 43.5 52.5C43.5 49 41.5 47 37 47ZM27 69V83H38C43 83 45.5 80.5 45.5 76C45.5 71.5 43 69 38 69ZM90 37H105V70H112V81H105V93H92V81H66V71ZM92 55V70H81.4Z"/>
+      <rect x="708" y="422" width="92" height="180"/>
+    </g>
+    <rect x="100" y="100" width="824" height="824" fill="url(#scanlines)"/>
+  </g>
+</svg>
