@@ -159,6 +159,18 @@ function installService() {
     NodeFS.writeFileSync(launchdPlistPath, plist);
     const domain = `gui/${NodeOS.userInfo().uid}`;
     run("launchctl", ["bootout", `${domain}/${LAUNCHD_LABEL}`], { allowFailure: true });
+    // bootout returns before the old job is gone, and bootstrap fails until it is.
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const loaded = NodeChildProcess.spawnSync(
+        "launchctl",
+        ["print", `${domain}/${LAUNCHD_LABEL}`],
+        {
+          stdio: "ignore",
+        },
+      );
+      if (loaded.status !== 0) break;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
+    }
     run("launchctl", ["bootstrap", domain, launchdPlistPath]);
     console.log(`b4: running on http://${host}:${port}, logs in ${logPath}`);
     return;
