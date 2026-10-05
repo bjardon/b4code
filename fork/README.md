@@ -31,6 +31,7 @@ First-time setup on a machine with Node 24 or newer, `vp`, and the provider CLIs
 ```sh
 git clone git@github.com:bjardon/t3code.git ~/.b4-code/src
 cd ~/.b4-code/src
+node fork/b4.ts signing   # macOS only
 node fork/b4.ts deploy
 node fork/b4.ts service
 node fork/b4.ts pair
@@ -38,7 +39,9 @@ node fork/b4.ts pair
 
 `deploy` resets the clone to `origin/main`, applies `branding.patch`, installs dependencies, builds the server and web client, and restarts the service. It refuses to run from any other checkout because the reset discards local changes.
 
-On macOS, `deploy` also builds the B4 Code desktop app and installs it to `/Applications`. It quits a running copy first and reopens it afterward. Like respawken, the app is signed ad-hoc, and a local build has no quarantine flag, so Gatekeeper opens it without a prompt. B4 Code is a client only. Its local environment starts off, so it runs no server of its own. Connect it to this server with `pair`. It stays separate from the official T3 Code app, which keeps working for the work setup.
+On macOS, `deploy` also builds the B4 Code desktop app and installs it to `/Applications`. It quits a running copy first and reopens it afterward. B4 Code is a client only. Its local environment starts off, so it runs no server of its own. Connect it to this server with `pair`. It stays separate from the official T3 Code app, which keeps working for the work setup.
+
+`signing` creates a self-signed code-signing identity, "b4code local", in the login keychain, and `deploy` signs B4 Code with it. Run it once per Mac, before the first deploy. A local build has no quarantine flag, so Gatekeeper opens it without a prompt either way. The identity matters for the keychain: macOS ties "Always Allow" to the app's signature, and an ad-hoc signature changes with every build, so B4 Code would prompt for its own keychain item after each deploy. The certificate stays untrusted, and `codesign` doesn't need it trusted. Without the identity, `deploy` falls back to ad-hoc signing.
 
 `service` writes a launchd agent on macOS or a systemd user unit on Linux, using the Node that ran it and the current `PATH`. Rerun it after changing `B4_PORT`, `B4_HOST`, or `B4_HOME`, or after moving Node. On Linux, the unit only survives logout with lingering enabled (`loginctl enable-linger`).
 
