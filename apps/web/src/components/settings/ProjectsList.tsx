@@ -5,9 +5,10 @@ import {
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
 import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
-import { Settings2Icon, Trash2Icon } from "lucide-react";
+import { PlusIcon, Settings2Icon, Trash2Icon } from "lucide-react";
 import { useMemo } from "react";
 
+import { openCommandPalette } from "../../commandPaletteBus";
 import { useComposerDraftStore } from "../../composerDraftStore";
 import { releaseProjectDraftUploads } from "../../lib/composerDraftUploads";
 import { readLocalApi } from "../../localApi";
@@ -162,11 +163,21 @@ export function ProjectsList() {
 
   return (
     <SettingsPageContainer>
-      <SettingsSection title="Projects">
+      <SettingsSection
+        title="Projects"
+        headerAction={
+          <Button
+            size="xs"
+            variant="ghost-muted"
+            onClick={() => openCommandPalette({ open: "add-project" })}
+          >
+            <PlusIcon className="size-3" />
+            <span>Add project</span>
+          </Button>
+        }
+      >
         {entries.length === 0 ? (
-          <p className="px-4 py-3 text-sm text-muted-foreground">
-            Add a project from the sidebar to manage it here.
-          </p>
+          <p className="px-4 py-3 text-sm text-muted-foreground">Click “Add project” to add one.</p>
         ) : (
           entries.map((entry) => (
             <SettingsRow
