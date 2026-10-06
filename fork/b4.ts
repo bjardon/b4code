@@ -223,6 +223,10 @@ function installDesktopApp() {
     NodeFS.mkdirSync(NodePath.dirname(settingsPath), { recursive: true });
     NodeFS.writeFileSync(settingsPath, `${JSON.stringify({ localEnvironmentEnabled: false })}\n`);
   }
+  // `open` passes this environment to the app, and T3CODE_HOME overrides the
+  // app's own data home. A deploy run from a b4-code session has it set to the
+  // server's home, which would point the app at the server's live database.
+  delete process.env.T3CODE_HOME;
   if (firstInstall || wasRunning) run("open", [installedDesktopApp]);
   console.log(`b4: installed ${installedDesktopApp}`);
 }
