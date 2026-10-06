@@ -43,7 +43,6 @@ import { SidebarUtilityMenu } from "../sidebar/SidebarChrome";
 import { scrollToSettingsTarget } from "./settingsLayout";
 import {
   searchSettings,
-  isSettingsOverviewVisible,
   SETTINGS_SECTION_LABELS,
   type SettingsPath,
   type SettingsSearchItem,
@@ -111,9 +110,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
   const currentHash = useLocation({ select: (location) => location.hash });
   const currentSearch = useLocation({ select: (location) => location.search });
   const scopeSearch = useMemo(() => validateSettingsScopeSearch(currentSearch), [currentSearch]);
-  const navItems = SETTINGS_NAV_ITEMS.filter(
-    (item) => item.to !== "/settings/projects" || isSettingsOverviewVisible(scopeSearch),
-  );
+  const navItems = SETTINGS_NAV_ITEMS;
   const { isMobile, setOpenMobile, open, setOpen } = useSidebar();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
@@ -177,9 +174,13 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
         hash: "",
         replace: true,
         hashScrollIntoView: false,
+        // Projects is already open on one project: go back to the list.
+        ...(to === "/settings/projects" && pathname === to && scopeSearch.project
+          ? { search: { project: undefined, checkout: undefined, machine: scopeSearch.machine } }
+          : {}),
       });
     },
-    [isMobile, navigate, setOpenMobile],
+    [isMobile, navigate, pathname, scopeSearch, setOpenMobile],
   );
   const clearSearch = useCallback(() => {
     setQuery("");

@@ -4,6 +4,7 @@ import {
   WorkspaceBreadcrumbSeparator,
 } from "../WorkspaceBreadcrumb";
 import { SETTINGS_SECTION_LABELS } from "./settingsSearch";
+import { ProjectsBreadcrumbTrail } from "./ProjectsBreadcrumbTrail";
 
 const SETTINGS_BREADCRUMB_LABELS: Readonly<Record<string, string>> = {
   ...SETTINGS_SECTION_LABELS,
@@ -22,6 +23,7 @@ function settingsBreadcrumbLabel(pathname: string): string | null {
  */
 export function SettingsBreadcrumb({ pathname }: { pathname: string }) {
   const sectionLabel = settingsBreadcrumbLabel(pathname);
+  if (pathname === "/settings/projects") return <ProjectsBreadcrumbTrail />;
 
   return (
     <WorkspaceBreadcrumb ariaLabel="Settings breadcrumb">
