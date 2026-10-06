@@ -31,7 +31,7 @@ The server runs from a dedicated clone at `~/.b4-code/src` and keeps its data in
 First-time setup on a machine with Node 24 or newer, `vp`, and the provider CLIs on `PATH`. On macOS, `deploy` also builds the desktop app, which needs the Xcode command line tools and Rust with the host's target (`brew install rustup`, then `rustup default stable`).
 
 ```sh
-git clone git@github.com:bjardon/b4code.git ~/.b4-code/src
+git clone https://github.com/bjardon/b4code.git ~/.b4-code/src
 cd ~/.b4-code/src
 node fork/b4.ts signing   # macOS only
 node fork/b4.ts deploy
@@ -40,6 +40,10 @@ node fork/b4.ts pair
 ```
 
 `deploy` resets the clone to `origin/main`, applies `branding.patch`, installs dependencies, builds the server and web client, and restarts the service. It refuses to run from any other checkout because the reset discards local changes.
+
+The repo is public and the deploy clone only fetches, so HTTPS needs no credentials or github.com SSH host key. An SSH clone works too.
+
+On Linux, `deploy` gives Node a 4096 MB heap for the install and build, because `vp i` runs out of memory under the default heap on a 7 GiB machine. A `--max-old-space-size` already in `NODE_OPTIONS` wins.
 
 On macOS, `deploy` also builds the B4 Code desktop app and installs it to `/Applications`. It quits a running copy first and reopens it afterward. B4 Code is a client only. Its local environment starts off, so it runs no server of its own. Connect it to this server with `pair`. It stays separate from the official T3 Code app, which keeps working for the work setup.
 
