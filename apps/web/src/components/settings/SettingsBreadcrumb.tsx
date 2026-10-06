@@ -6,6 +6,7 @@ import {
   WorkspaceBreadcrumbSeparator,
 } from "../WorkspaceBreadcrumb";
 import { SETTINGS_SECTION_LABELS } from "./settingsSearch";
+import { ProjectsBreadcrumbTrail } from "./ProjectsBreadcrumbTrail";
 
 const SETTINGS_LABEL = msg("Settings");
 
@@ -24,6 +25,7 @@ export function SettingsBreadcrumb({ pathname }: { pathname: string }) {
   const gt = useGT();
   const m = useMessages();
   const sectionLabel = settingsBreadcrumbLabel(pathname);
+  if (pathname === "/settings/projects") return <ProjectsBreadcrumbTrail />;
 
   return (
     <WorkspaceBreadcrumb ariaLabel={gt("Settings breadcrumb")}>

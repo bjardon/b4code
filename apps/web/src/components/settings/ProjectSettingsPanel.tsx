@@ -54,6 +54,7 @@ import {
 } from "./ProjectFaviconPickerDialog";
 import { ProjectActionsSettings } from "./ProjectActionsSettings";
 import { ProjectDefaultsSettings } from "./ProjectDefaultsSettings";
+import { ProjectPathRows } from "./ProjectPathRows";
 import {
   defaultProjectIcon,
   hasDefaultProjectIcon,
@@ -254,6 +255,7 @@ export function ProjectSettingsPanel({
       group={scopedGroup}
       allMembers={selected.memberProjects}
       hasOtherMembers={members.length < selected.memberProjects.length}
+      showPaths={environmentId !== null || checkoutKey !== null}
     />
   );
 }
@@ -262,11 +264,13 @@ function ProjectDetail({
   group,
   allMembers,
   hasOtherMembers,
+  showPaths,
 }: {
   group: SidebarProjectSnapshot;
   /** Pin and archive belong to the whole project, even when one machine is picked. */
   allMembers: ReadonlyArray<SidebarProjectGroupMember>;
   hasOtherMembers: boolean;
+  showPaths: boolean;
 }) {
   const gt = useGT();
   const navigate = useNavigate({ from: "/settings" });
@@ -553,6 +557,7 @@ function ProjectDetail({
                 : gt("This connection cannot change this project.")}
             </p>
           ) : null}
+          {showPaths ? <ProjectPathRows members={group.memberProjects} /> : null}
           <SettingsRow
             title={gt("Name")}
             description={gt(

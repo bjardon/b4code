@@ -61,6 +61,7 @@ import {
 } from "./settingsSearch";
 import { useAvailableSettingsSearchItems } from "./useAvailableSettingsSearchItems";
 import { handleSettingsSectionKeyDown } from "./settingsSectionNavigation";
+import { validateSettingsScopeSearch } from "./settingsScope";
 import { workspaceAreaProps } from "../../lib/workspaceFocus";
 
 const SnapShotIcon = createLucideIcon("snap-shot", [
@@ -136,6 +137,9 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
   const navArea = workspaceAreaProps("settings-nav", 0, gt("Settings sections"));
   const navigate = useNavigate();
   const currentHash = useLocation({ select: (location) => location.hash });
+  const scopeSearch = validateSettingsScopeSearch(
+    useLocation({ select: (location) => location.search }),
+  );
   const activePath = SETTINGS_DETAIL_PAGE_PARENTS[pathname] ?? pathname;
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
@@ -203,6 +207,10 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
       hash: "",
       replace: true,
       hashScrollIntoView: false,
+      // Projects is already open on one project: go back to the list.
+      ...(to === "/settings/projects" && pathname === to && scopeSearch.project
+        ? { search: { project: undefined, checkout: undefined, machine: scopeSearch.machine } }
+        : {}),
     });
   };
 
