@@ -188,6 +188,10 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
       hash: "",
       replace: true,
       hashScrollIntoView: false,
+      // Projects is already open on one project: go back to the list.
+      ...(to === "/settings/projects" && pathname === to && scopeSearch.project
+        ? { search: { project: undefined, checkout: undefined, machine: scopeSearch.machine } }
+        : {}),
     });
   };
 

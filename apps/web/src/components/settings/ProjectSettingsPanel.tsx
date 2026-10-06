@@ -46,6 +46,7 @@ import {
 } from "./ProjectFaviconPickerDialog";
 import { ProjectActionsSettings } from "./ProjectActionsSettings";
 import { ProjectDefaultsSettings } from "./ProjectDefaultsSettings";
+import { ProjectPathRows } from "./ProjectPathRows";
 import { projectGroupTitleNeedsUpdate } from "./ProjectSettingsPanel.logic";
 import { useSettingsProjectGroups } from "./useSettingsProjectGroups";
 import { readUnloadedThreadCount } from "../../state/olderSettledShelf";
@@ -165,6 +166,7 @@ export function ProjectSettingsPanel({
       key={`${selected.projectKey}:${environmentId ?? "all"}:${checkoutKey ?? "all"}`}
       group={scopedGroup}
       hasOtherMembers={members.length < selected.memberProjects.length}
+      showPaths={environmentId !== null || checkoutKey !== null}
     />
   );
 }
@@ -172,9 +174,11 @@ export function ProjectSettingsPanel({
 function ProjectDetail({
   group,
   hasOtherMembers,
+  showPaths,
 }: {
   group: SidebarProjectSnapshot;
   hasOtherMembers: boolean;
+  showPaths: boolean;
 }) {
   const navigate = useNavigate({ from: "/settings" });
   const primaryEnvironmentId = usePrimaryEnvironmentId();
@@ -486,6 +490,7 @@ function ProjectDetail({
                 : "This connection cannot change this project."}
             </p>
           ) : null}
+          {showPaths ? <ProjectPathRows members={group.memberProjects} /> : null}
           <SettingsRow
             title="Name"
             description="The shared name for this project group in the sidebar and thread lists."
