@@ -133,6 +133,7 @@ function build() {
   // when an upstream sync moves the lines it touches.
   run("git", ["apply", "fork/branding.patch"]);
   applyAppIcon();
+  raiseBuildHeap();
   run("vp", ["i"]);
   if (isMac) {
     run("vp", ["run", "build:desktop"]);
@@ -142,6 +143,16 @@ function build() {
   }
   if (serviceInstalled()) restartService();
   else console.log("b4: built. Run `node fork/b4.ts service` to start it in the background.");
+}
+
+// `vp i` runs out of memory under Node's default heap on the Linux devbox, where
+// the default is about 2 GB of its 7 GiB. 4096 MB is the value known to work.
+// Children inherit process.env, so this reaches `vp i` and the builds after it.
+// The Mac installs fine with its default heap, so it keeps it.
+function raiseBuildHeap() {
+  const nodeOptions = process.env.NODE_OPTIONS ?? "";
+  if (isMac || /--max[-_]old[-_]space[-_]size/.test(nodeOptions)) return;
+  process.env.NODE_OPTIONS = `${nodeOptions} --max-old-space-size=4096`.trim();
 }
 
 function applyAppIcon() {
