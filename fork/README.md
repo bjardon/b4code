@@ -39,7 +39,7 @@ node fork/b4.ts service
 node fork/b4.ts pair
 ```
 
-`deploy` resets the clone to `origin/main`, applies `branding.patch`, installs dependencies, builds the server and web client, and restarts the service. It refuses to run from any other checkout because the reset discards local changes.
+`deploy` resets the clone to `origin/main`, applies `branding.patch`, installs dependencies, builds the server and web client, restarts the service, and waits for the server to answer. It refuses to run from any other checkout because the reset discards local changes. Started from a session on this server, such as an agent's, it runs in the background and logs to `~/.b4-code/logs/deploy.log`, because the restart ends that session.
 
 The repo is public and the deploy clone only fetches, so HTTPS needs no credentials or github.com SSH host key. An SSH clone works too.
 
