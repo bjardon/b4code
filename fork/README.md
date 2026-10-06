@@ -31,7 +31,7 @@ The server runs from a dedicated clone at `~/.b4-code/src` and keeps its data in
 First-time setup on a machine with Node 24 or newer, `vp`, and the provider CLIs on `PATH`. On macOS, `deploy` also builds the desktop app, which needs the Xcode command line tools and Rust with the host's target (`brew install rustup`, then `rustup default stable`).
 
 ```sh
-git clone git@github.com:bjardon/t3code.git ~/.b4-code/src
+git clone git@github.com:bjardon/b4code.git ~/.b4-code/src
 cd ~/.b4-code/src
 node fork/b4.ts signing   # macOS only
 node fork/b4.ts deploy
