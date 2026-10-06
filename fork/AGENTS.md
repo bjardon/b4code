@@ -42,15 +42,23 @@ This file wins where the two conflict:
 - Develop in a worktree with upstream's dev workflow (`vp i`, `vp run dev`). Worktree state stays in its own `.t3`.
 - Verify with upstream's rules: targeted `vp test run`, lint, and typecheck for the files you touched. For `fork/b4.ts`, typecheck it against `tsconfig.base.json` and run `vp lint fork/b4.ts`.
 - Check every user-visible frontend change in the browser before reporting it done, and don't ask first. Seed the worktree's dev server with real data and drive the flow with `test-t3-app`. This overrides upstream's rule to ask before opening browsers.
-- The running server is `http://127.0.0.1:3780` on the Mac (launchd agent `dev.b4code.server`, logs in `~/.b4-code/logs/service.log`). The desktop client is `/Applications/B4 Code.app`.
+
+## Machines
+
+b4-code runs on two machines. Treat both as production.
+
+- **devbox**: Linux, reached with `ssh devbox` as `bjardon`. Deploy with `ssh devbox 'cd ~/.b4-code/src && node fork/b4.ts deploy'`. The service is the systemd user unit `b4-code.service`. Never act as the `oxperience` user, which is a separate profile. Fleet installs b4-code there the first time; after that, updates come only from these deploys.
+- **Mac**: the server at `http://127.0.0.1:3780` (launchd agent `dev.b4code.server`, logs in `~/.b4-code/logs/service.log`) and the B4 Code client at `/Applications/B4 Code.app`. Deploy with `cd ~/.b4-code/src && node fork/b4.ts deploy`, which also rebuilds B4 Code, quitting and reopening it.
 
 ## Wrap-up
 
-- Implement and verify freely, but ship only after Bruno explicitly accepts the work or asks to wrap up.
-- Before shipping, verify the accepted user-visible behavior in proportion to the change.
-- Refresh `fork/TODO.md` so completed, partial, and unfinished outcomes stay accurate.
-- Land the work on `main` and push it. Commits carry a `Co-Authored-By` trailer. Opening a pull request is not a completed wrap-up.
-- Deploy it: `cd ~/.b4-code/src && node fork/b4.ts deploy`. Shipped means the running server has the change.
-- Don't add required review, branch protection, or other quality gates unless Bruno asks for them.
-- Consider the devlog at every wrap-up. Append only durable decisions, learnings, or dead ends, under `### YYYY-MM-DD — Title`, with a `<Agent Name> posting on behalf of Bruno` line. Don't repeat what Git history or `TODO.md` already record.
-- If any step is blocked, report wrap-up as incomplete and name the blocker. Don't record the work as shipped.
+Implement and verify freely, but ship only after Bruno accepts the work. "Ship it", or any request to wrap up, approves every step below. Run them in order without asking again, and stop to ask only when a step fails.
+
+1. Verify the accepted user-visible behavior in proportion to the change.
+2. Refresh `fork/TODO.md` so completed, partial, and unfinished outcomes stay accurate.
+3. Commit with a `Co-Authored-By` trailer and land it on `main`. From a worktree, rebase onto `origin/main`, run `git push origin HEAD:main`, then fast-forward the main checkout if it is clean. Opening a pull request is not a completed wrap-up.
+4. Deploy to every machine in [Machines](#machines), one at a time, and confirm each run ends with `b4: server answering on ...`. Deploy the machine hosting this session last, usually the Mac: its restart ends the session, so from it `deploy` runs in the background and logs to `~/.b4-code/logs/deploy.log`. Before that last deploy, tell Bruno the thread will drop and that the next message brings the result. Each restart also interrupts any agent turns running on that server.
+5. On the next turn, read the deploy log on the session's machine. Shipped means every machine's server runs the change.
+6. Consider the devlog. Append only durable decisions, learnings, or dead ends, under `### YYYY-MM-DD — Title`, with a `<Agent Name> posting on behalf of Bruno` line. Don't repeat what Git history or `TODO.md` already record.
+
+If any step is blocked, report the wrap-up as incomplete and name the blocker. Don't record the work as shipped. Don't add required review, branch protection, or other quality gates unless Bruno asks for them.
