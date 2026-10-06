@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// @effect-diagnostics nodeBuiltinImport:off globalConsole:off - runs before `vp i`, so only Node built-ins exist.
+// @effect-diagnostics nodeBuiltinImport:off globalConsole:off globalFetch:off globalDate:off - runs before `vp i`, so only Node built-ins exist.
 /**
  * Builds and runs b4-code, Bruno's fork of T3 Code, from a dedicated checkout.
  * See fork/README.md for the layout and the first-time setup.
@@ -121,13 +121,32 @@ function deploy() {
     fail(`deploy only runs from ${deployCheckout}; this checkout is ${repoRoot}.`);
   }
   if (read("git", ["branch", "--show-current"]) !== "main") fail("check out main first.");
+  // The restart at the end ends any session the b4-code server hosts, such as an
+  // agent's. Run detached from it and log to a file the next session can read.
+  const sessionHome = process.env.T3CODE_HOME;
+  if (sessionHome !== undefined && NodePath.resolve(sessionHome) === home) {
+    const logPath = NodePath.join(home, "logs/deploy.log");
+    NodeFS.mkdirSync(NodePath.dirname(logPath), { recursive: true });
+    const log = NodeFS.openSync(logPath, "w");
+    const environment = { ...process.env };
+    delete environment.T3CODE_HOME;
+    NodeChildProcess.spawn(process.execPath, [NodePath.join(repoRoot, "fork/b4.ts"), "deploy"], {
+      cwd: repoRoot,
+      detached: true,
+      env: environment,
+      stdio: ["ignore", log, log],
+    }).unref();
+    console.log(`b4: deploying in the background because the restart ends this session.`);
+    console.log(`b4: log in ${logPath}`);
+    return;
+  }
   run("git", ["fetch", "origin"]);
   run("git", ["reset", "--hard", "origin/main"]);
   // The reset may have changed this script, so the rest runs from the new copy.
   run(process.execPath, [NodePath.join(repoRoot, "fork/b4.ts"), "__build"]);
 }
 
-function build() {
+async function build() {
   // Branding is a packaging step, so main keeps upstream's code and tests. The
   // patch stays applied until the next deploy resets it, and it fails loudly
   // when an upstream sync moves the lines it touches.
@@ -141,8 +160,11 @@ function build() {
   } else {
     run("vp", ["run", "--filter", "t3", "build"]);
   }
-  if (serviceInstalled()) restartService();
-  else console.log("b4: built. Run `node fork/b4.ts service` to start it in the background.");
+  if (serviceInstalled()) {
+    const restartedAt = Date.now();
+    restartService();
+    await waitForServer(restartedAt);
+  } else console.log("b4: built. Run `node fork/b4.ts service` to start it in the background.");
 }
 
 // `vp i` runs out of memory under Node's default heap on the Linux devbox, where
@@ -241,7 +263,42 @@ function restartService() {
   } else {
     run("systemctl", ["--user", "restart", "b4-code.service"]);
   }
-  console.log(`b4: restarted on http://${host}:${port}`);
+  console.log("b4: restarted the service.");
+}
+
+// The deploy log's last line is how an agent whose session the restart ended
+// learns that the server came back. The server records its address once it
+// listens, which also covers a service installed with another B4_PORT or B4_HOST.
+async function waitForServer(restartedAt: number) {
+  const statePath = NodePath.join(home, "userdata/server-runtime.json");
+  for (let attempt = 0; attempt < 120; attempt++) {
+    const origin = restartedOrigin(statePath, restartedAt);
+    const answered =
+      origin !== undefined &&
+      (await fetch(origin).then(
+        (response) => response.ok,
+        () => false,
+      ));
+    if (answered) {
+      console.log(`b4: server answering on ${origin}`);
+      return;
+    }
+    sleep(500);
+  }
+  fail(`the server did not come back within a minute; check its logs.`);
+}
+
+function restartedOrigin(statePath: string, restartedAt: number): string | undefined {
+  let state: unknown;
+  try {
+    state = JSON.parse(NodeFS.readFileSync(statePath, "utf8"));
+  } catch {
+    return undefined;
+  }
+  if (typeof state !== "object" || state === null) return undefined;
+  if (!("origin" in state) || typeof state.origin !== "string") return undefined;
+  if (!("startedAt" in state) || typeof state.startedAt !== "string") return undefined;
+  return Date.parse(state.startedAt) >= restartedAt ? state.origin : undefined;
 }
 
 function xml(value: string): string {
@@ -417,7 +474,7 @@ function pair() {
   run(process.execPath, [serverEntry, "pair", "--base-dir", home, ...process.argv.slice(3)]);
 }
 
-const commands: Record<string, () => void> = {
+const commands: Record<string, () => void | Promise<void>> = {
   sync,
   deploy,
   __build: build,
@@ -427,4 +484,4 @@ const commands: Record<string, () => void> = {
 };
 const command = commands[process.argv[2] ?? ""];
 if (command === undefined) fail("usage: node fork/b4.ts <sync|deploy|service|pair|signing>");
-command();
+await command();
