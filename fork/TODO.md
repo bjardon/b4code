@@ -7,4 +7,4 @@
 - [x] Personal Claude, Codex, and Cursor are signed in on b4-code (Mac)
 - [x] Settings lists every project to configure or remove, and a project's settings show its path on the selected environment
 - [ ] b4-code is the daily driver for freelance and experiment work, and the first customizations come from that use
-- [ ] b4-code replaces `t3@latest` on the devbox personal profile (port 3773, tailnet), with the Fleet profile updated to match
+- [~] b4-code replaces `t3@latest` on the devbox personal profile (port 3773, tailnet), with the Fleet profile updated to match. The devbox runs b4-code. Fleet still manages `t3code.service` for personal.
