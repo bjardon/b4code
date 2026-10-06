@@ -5,7 +5,7 @@ import { LayersIcon } from "lucide-react";
 import { Button } from "../ui/button";
 import { ProjectSettingsPanel } from "./ProjectSettingsPanel";
 import { useSettingsScope } from "./SettingsScopeContext";
-import { SettingsScopeNotice } from "./SettingsScopeNotice";
+import { ProjectsList } from "./ProjectsList";
 import { SettingsPageContainer } from "./settingsLayout";
 import { ALL_ENVIRONMENTS_VALUE, selectEnvironmentAxis } from "./settingsScopeAxis";
 
@@ -48,9 +48,7 @@ export function ProjectsSettings() {
       ) : unavailable ? (
         unavailable
       ) : (
-        <SettingsScopeNotice target="project">
-          {gt("Choose a project to manage its name, icon, checkouts and actions.")}
-        </SettingsScopeNotice>
+        <ProjectsList />
       )}
     </div>
   );
