@@ -41,6 +41,7 @@ This file wins where the two conflict:
 
 - Develop in a worktree with upstream's dev workflow (`vp i`, `vp run dev`). Worktree state stays in its own `.t3`.
 - Verify with upstream's rules: targeted `vp test run`, lint, and typecheck for the files you touched. For `fork/b4.ts`, typecheck it against `tsconfig.base.json` and run `vp lint fork/b4.ts`.
+- Check every user-visible frontend change in the browser before reporting it done, and don't ask first. Seed the worktree's dev server with real data and drive the flow with `test-t3-app`. This overrides upstream's rule to ask before opening browsers.
 - The running server is `http://127.0.0.1:3780` on the Mac (launchd agent `dev.b4code.server`, logs in `~/.b4-code/logs/service.log`). The desktop client is `/Applications/B4 Code.app`.
 
 ## Wrap-up
