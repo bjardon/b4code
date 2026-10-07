@@ -26,6 +26,8 @@ function errorMessage(error: unknown): string {
  * opens a new thread draft in it. With `github`, it also publishes the
  * repository as private, without holding up the draft.
  *
+ * `openThread: false` skips the draft for callers that stay on their page.
+ *
  * Resolves to whether the project was created.
  */
 export function useNewProject() {
@@ -78,6 +80,7 @@ export function useNewProject() {
       readonly environmentId: EnvironmentId;
       readonly name: string;
       readonly github: { readonly account: string | null } | null;
+      readonly openThread?: boolean;
     }): Promise<boolean> => {
       const result = await createNew({
         environmentId: input.environmentId,
@@ -117,6 +120,7 @@ export function useNewProject() {
         });
       }
 
+      if (input.openThread === false) return true;
       const projectRef = scopeProjectRef(input.environmentId, projectId);
       // Drafts key off the project's stored path, so wait for the create event
       // to reach the store before opening one.

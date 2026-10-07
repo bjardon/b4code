@@ -9,8 +9,17 @@ export interface CommandPaletteLinkedThreads {
 // without owning its React state.
 const COMMAND_PALETTE_OPEN_EVENT = "t3code:open-command-palette";
 
+/** Opened from a page that lists projects, such as Settings > Projects. */
+export interface CommandPaletteAddProjectOptions {
+  /** Skips the environment step and adds the project there. */
+  readonly environmentId?: EnvironmentId;
+  /** Stays on the current page after adding instead of opening a thread. */
+  readonly stayOnPage?: boolean;
+}
+
 export interface CommandPaletteOpenDetail {
   readonly open?: "add-project" | "new-thread-in";
+  readonly addProject?: CommandPaletteAddProjectOptions;
   readonly query?: string;
   readonly linkedThreads?: CommandPaletteLinkedThreads;
 }

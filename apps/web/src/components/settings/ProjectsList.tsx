@@ -56,7 +56,7 @@ function ProjectEntryDescription({
  * Configure opens the project's settings page; Remove deletes its entries.
  */
 export function ProjectsList() {
-  const { groups, search, selectScope } = useSettingsScope();
+  const { groups, scope, search, selectScope } = useSettingsScope();
   const threads = useThreadShells();
   const deleteProject = useAtomCommand(projectEnvironment.delete, { reportFailure: false });
 
@@ -169,7 +169,15 @@ export function ProjectsList() {
           <Button
             size="xs"
             variant="ghost-muted"
-            onClick={() => openCommandPalette({ open: "add-project" })}
+            onClick={() =>
+              openCommandPalette({
+                open: "add-project",
+                addProject: {
+                  stayOnPage: true,
+                  ...(scope.kind === "environment" ? { environmentId: scope.environmentId } : {}),
+                },
+              })
+            }
           >
             <PlusIcon className="size-3" />
             <span>Add project</span>

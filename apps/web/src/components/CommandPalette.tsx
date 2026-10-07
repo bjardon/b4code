@@ -129,7 +129,7 @@ import {
   isUnsupportedWindowsProjectPath,
   resolveProjectPathForDispatch,
 } from "../lib/projectPaths";
-import { onOpenCommandPalette } from "../commandPaletteBus";
+import { type CommandPaletteAddProjectOptions, onOpenCommandPalette } from "../commandPaletteBus";
 import { isPreviewFocused } from "../lib/previewFocus";
 import { isTerminalFocused } from "../lib/terminalFocus";
 import {
@@ -482,7 +482,11 @@ export function CommandPalette({ children }: { children: ReactNode }) {
     (mode: SearchOverlayMode) => dispatch({ _tag: "ToggleMode", mode }),
     [],
   );
-  const openAddProject = useCallback(() => dispatch({ _tag: "OpenAddProject" }), []);
+  const openAddProject = useCallback(
+    (options?: CommandPaletteAddProjectOptions) =>
+      dispatch(options ? { _tag: "OpenAddProject", options } : { _tag: "OpenAddProject" }),
+    [],
+  );
   const openNewThreadIn = useCallback(() => dispatch({ _tag: "OpenNewThreadIn" }), []);
   const clearOpenIntent = useCallback(() => dispatch({ _tag: "ClearOpenIntent" }), []);
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
@@ -601,7 +605,7 @@ export function CommandPalette({ children }: { children: ReactNode }) {
         if (detail.open === "new-thread-in") {
           openNewThreadIn();
         } else if (detail.open === "add-project") {
-          openAddProject();
+          openAddProject(detail.addProject);
         } else if (detail.query !== undefined) {
           dispatch({
             _tag: "OpenSearch",
@@ -872,6 +876,7 @@ function OpenCommandPaletteDialog(props: {
   const [addProjectEnvironmentId, setAddProjectEnvironmentId] = useState<EnvironmentId | null>(
     null,
   );
+  const [addProjectStaysOnPage, setAddProjectStaysOnPage] = useState(false);
   const [isPickingProjectFolder, setIsPickingProjectFolder] = useState(false);
   const [addProjectCloneFlow, setAddProjectCloneFlow] = useState<AddProjectCloneFlow | null>(null);
   // The name step of New project: while set, the palette input is the name.
@@ -1860,8 +1865,10 @@ function OpenCommandPaletteDialog(props: {
       return;
     }
     clearOpenIntent();
-    openAddProjectFlow();
-  }, [clearOpenIntent, openAddProjectFlow, openIntent]);
+    setAddProjectStaysOnPage(openIntent.options?.stayOnPage === true);
+    if (openIntent.options?.environmentId === undefined) openAddProjectFlow();
+    else startAddProjectSourceSelection(openIntent.options.environmentId);
+  }, [clearOpenIntent, openAddProjectFlow, openIntent, startAddProjectSourceSelection]);
 
   useLayoutEffect(() => {
     if (openIntent?.kind !== "new-thread-in" || projectThreadItems.length === 0) {
@@ -2419,6 +2426,13 @@ function OpenCommandPaletteDialog(props: {
         cwd,
       );
       if (existing) {
+        if (addProjectStaysOnPage) {
+          toastManager.add(
+            stackedThreadToast({ type: "info", title: `${existing.title} is already a project` }),
+          );
+          setOpen(false);
+          return;
+        }
         const latestThread = getLatestThreadForProject(
           threads.filter((thread) => thread.environmentId === existing.environmentId),
           existing.id,
@@ -2485,6 +2499,10 @@ function OpenCommandPaletteDialog(props: {
         }
         return;
       }
+      if (addProjectStaysOnPage) {
+        setOpen(false);
+        return;
+      }
 
       const navigationResult = await settlePromise(() =>
         handleNewThread(scopeProjectRef(input.environmentId, projectId)),
@@ -2503,6 +2521,7 @@ function OpenCommandPaletteDialog(props: {
       setOpen(false);
     },
     [
+      addProjectStaysOnPage,
       handleNewThread,
       createProject,
       environments,
@@ -2554,6 +2573,7 @@ function OpenCommandPaletteDialog(props: {
         environmentId: newProjectFlow.environmentId,
         name: newProjectName,
         github: newProjectPublishesToGitHub ? newProjectGitHubTarget : null,
+        openThread: !addProjectStaysOnPage,
       });
       if (created) setOpen(false);
     } finally {
