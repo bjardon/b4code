@@ -22,6 +22,7 @@ import { Button } from "../ui/button";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { SettingsPageContainer, SettingsRow, SettingsSection } from "./settingsLayout";
+import { ProjectEnvironmentsPopover } from "./ProjectEnvironmentsPopover";
 import { useSettingsScope } from "./SettingsScopeContext";
 
 type ProjectEntry = {
@@ -43,10 +44,7 @@ function ProjectEntryDescription({
   entry: ProjectEntry;
   machine: string | undefined;
 }) {
-  if (!machine) {
-    const environmentCount = new Set(entry.members.map((member) => member.environmentId)).size;
-    return `${environmentCount} environment${environmentCount === 1 ? "" : "s"}`;
-  }
+  if (!machine) return <ProjectEnvironmentsPopover members={entry.members} />;
   if (entry.members.length > 1) return `${entry.members.length} checkouts`;
   return <span className="block truncate">{entry.members[0]!.workspaceRoot}</span>;
 }

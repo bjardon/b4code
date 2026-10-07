@@ -5,6 +5,6 @@
 - [x] B4 Code desktop app, client only, installed to `/Applications` by `deploy` alongside the official app
 - [~] Branding: the web UI and desktop app are named B4 Code, and the app icon, favicons, and splash logo are the B4 sticker, and the sidebar wordmark reads B4. UI copy still says T3 Code.
 - [x] Personal Claude, Codex, and Cursor are signed in on b4-code (Mac)
-- [x] Settings lists every project to add, configure, or remove, and a project's settings show its path on the selected environment
+- [x] Settings lists every project to add, configure, or remove, shows which environments and paths each one is on, and a project's settings show its path on the selected environment
 - [ ] b4-code is the daily driver for freelance and experiment work, and the first customizations come from that use
 - [x] b4-code replaces `t3@latest` on the devbox personal profile (port 3773, tailnet), with the Fleet profile updated to match
