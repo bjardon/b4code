@@ -69,6 +69,8 @@ export function useNewProject() {
     readonly environmentId: EnvironmentId;
     readonly name: string;
     readonly publishTo: NewProjectPublishTarget | null;
+    /** `false` skips the thread draft for callers that stay on their page. */
+    readonly openThread?: boolean;
   }): Promise<boolean> => {
     const result = await createNew({
       environmentId: input.environmentId,
@@ -107,6 +109,7 @@ export function useNewProject() {
       });
     }
 
+    if (input.openThread === false) return true;
     const projectRef = scopeProjectRef(input.environmentId, projectId);
     // Wait for the stored project path; drafts use it as their key.
     const project = await waitForProject(projectRef).catch((error: unknown) => {
