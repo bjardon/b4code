@@ -7,8 +7,17 @@ export interface CommandPaletteLinkedThreads {
   readonly threads: PullRequestLinkedThreadsResult["threads"];
 }
 
+/** Opened from a page that lists projects, such as Settings > Projects. */
+export interface CommandPaletteAddProjectOptions {
+  /** Skips the environment step and adds the project there. */
+  readonly environmentId?: EnvironmentId;
+  /** Stays on the current page after adding instead of opening a thread. */
+  readonly stayOnPage?: boolean;
+}
+
 export interface CommandPaletteOpenDetail {
   readonly open?: "add-project" | "new-thread-in";
+  readonly addProject?: CommandPaletteAddProjectOptions;
   readonly query?: string;
   readonly linkedThreads?: CommandPaletteLinkedThreads;
 }
@@ -20,7 +29,11 @@ export function openCommandPalette(detail: CommandPaletteOpenDetail = {}): void 
   if (detail.open === "new-thread-in") {
     dispatchCommandPalette({ _tag: "OpenNewThreadIn" });
   } else if (detail.open === "add-project") {
-    dispatchCommandPalette({ _tag: "OpenAddProject" });
+    dispatchCommandPalette(
+      detail.addProject
+        ? { _tag: "OpenAddProject", options: detail.addProject }
+        : { _tag: "OpenAddProject" },
+    );
   } else if (detail.query !== undefined) {
     dispatchCommandPalette({
       _tag: "OpenSearch",
