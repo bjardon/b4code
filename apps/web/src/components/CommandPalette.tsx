@@ -202,6 +202,7 @@ import {
   createCommandPaletteSearchState,
   type CommandPaletteGroup,
   resolveAddProjectEntry,
+  type AddProjectEntry,
   type AddProjectCloneFlow,
   type AddProjectEnvironmentOption,
   buildPaletteRemoteSourceReadiness,
@@ -501,8 +502,11 @@ function OpenCommandPaletteDialog(props: {
   const threadSearchQuery = currentView === null && !isActionsOnly ? deferredQuery : "";
   const [browseGeneration, setBrowseGeneration] = useState(0);
   const [browseNavigation] = useState(createBrowseNavigationCoordinator);
+  const addProjectOptions =
+    props.openIntent?.kind === "add-project" ? props.openIntent.options : undefined;
+  const addProjectStaysOnPage = addProjectOptions?.stayOnPage === true;
   const [addProjectEnvironmentId, setAddProjectEnvironmentId] = useState<EnvironmentId | null>(
-    null,
+    () => addProjectOptions?.environmentId ?? null,
   );
   const [isPickingProjectFolder, setIsPickingProjectFolder] = useState(false);
   const [addProjectCloneFlow, setAddProjectCloneFlow] = useState<AddProjectCloneFlow | null>(null);
@@ -1157,10 +1161,10 @@ function OpenCommandPaletteDialog(props: {
     setOpen(false);
     void navigate({ to: "/settings/connections" });
   };
-  const addProjectEntry = resolveAddProjectEntry(
-    addProjectEnvironmentOptions,
-    defaultAddProjectEnvironmentId,
-  );
+  const addProjectEntry: AddProjectEntry =
+    addProjectOptions?.environmentId === undefined
+      ? resolveAddProjectEntry(addProjectEnvironmentOptions, defaultAddProjectEnvironmentId)
+      : { kind: "choose-source", environmentId: addProjectOptions.environmentId };
 
   const openAddProjectFlow = () => {
     switch (addProjectEntry.kind) {
@@ -1810,6 +1814,19 @@ function OpenCommandPaletteDialog(props: {
           input: { projectId: existing.id, archived: false },
         }).then((result) => reportProjectFailure("Failed to unarchive project", result));
       }
+      if (addProjectStaysOnPage) {
+        toastManager.add(
+          stackedThreadToast({
+            type: "info",
+            title:
+              existing.archivedAt != null
+                ? `Restored ${existing.title}`
+                : `${existing.title} is already a project`,
+          }),
+        );
+        setOpen(false);
+        return;
+      }
       const latestThread = getLatestThreadForProject(
         threads.filter((thread) => thread.environmentId === existing.environmentId),
         existing.id,
@@ -1876,6 +1893,10 @@ function OpenCommandPaletteDialog(props: {
       }
       return;
     }
+    if (addProjectStaysOnPage) {
+      setOpen(false);
+      return;
+    }
 
     const navigationResult = await settlePromise(() =>
       handleNewThread(scopeProjectRef(input.environmentId, projectId)),
@@ -1928,6 +1949,7 @@ function OpenCommandPaletteDialog(props: {
         environmentId: newProjectFlow.environmentId,
         name: newProjectName,
         publishTo: newProjectPublishes ? newProjectPublishTarget : null,
+        openThread: !addProjectStaysOnPage,
       }),
     );
     newProjectSubmittingRef.current = false;
