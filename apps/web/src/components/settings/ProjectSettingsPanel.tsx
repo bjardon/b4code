@@ -41,7 +41,6 @@ import { Input } from "../ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Switch } from "../ui/switch";
 import { stackedThreadToast, toastManager } from "../ui/toast";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import {
   SettingResetButton,
   SettingsPageContainer,
@@ -53,8 +52,8 @@ import {
   ProjectFaviconPickerDialog,
 } from "./ProjectFaviconPickerDialog";
 import { ProjectActionsSettings } from "./ProjectActionsSettings";
+import { ProjectCheckouts } from "./ProjectCheckouts";
 import { ProjectDefaultsSettings } from "./ProjectDefaultsSettings";
-import { ProjectPathRows } from "./ProjectPathRows";
 import {
   defaultProjectIcon,
   hasDefaultProjectIcon,
@@ -64,7 +63,6 @@ import {
 } from "./ProjectSettingsPanel.logic";
 import { useSettingsProjectGroups } from "./useSettingsProjectGroups";
 import { readUnloadedThreadCount } from "../../state/olderSettledShelf";
-import { settingsScopeEnvironmentLabels } from "./settingsScopeAxis";
 
 const ProjectIconPickerDialog = lazy(() =>
   import("./ProjectIconPickerDialog").then((module) => ({
@@ -255,7 +253,6 @@ export function ProjectSettingsPanel({
       group={scopedGroup}
       allMembers={selected.memberProjects}
       hasOtherMembers={members.length < selected.memberProjects.length}
-      showPaths={environmentId !== null || checkoutKey !== null}
     />
   );
 }
@@ -264,13 +261,11 @@ function ProjectDetail({
   group,
   allMembers,
   hasOtherMembers,
-  showPaths,
 }: {
   group: SidebarProjectSnapshot;
   /** Pin and archive belong to the whole project, even when one machine is picked. */
   allMembers: ReadonlyArray<SidebarProjectGroupMember>;
   hasOtherMembers: boolean;
-  showPaths: boolean;
 }) {
   const gt = useGT();
   const navigate = useNavigate({ from: "/settings" });
@@ -352,7 +347,6 @@ function ProjectDetail({
     setIsSavingFavicon(false);
   };
 
-  const hasMultipleCheckouts = group.memberProjects.length > 1;
   const canResetScratchTitle =
     group.memberProjects.every((member) => member.isScratch) &&
     group.memberProjects.some((member) => member.title !== SCRATCH_PROJECT_TITLE);
@@ -434,107 +428,13 @@ function ProjectDetail({
     }
   };
 
-  const checkoutsByEnvironment = new Map<EnvironmentId, SidebarProjectGroupMember[]>();
-  for (const member of group.memberProjects) {
-    const members = checkoutsByEnvironment.get(member.environmentId);
-    if (members) members.push(member);
-    else checkoutsByEnvironment.set(member.environmentId, [member]);
-  }
-  // A lone checkout is removed from the Danger section, but it still needs its grouping
-  // rule here so "Keep separate" can be undone.
-  const checkoutControls = (member: SidebarProjectGroupMember) => (
-    <div className="flex w-full min-w-0 items-center gap-2 @min-[32rem]/settings-row:w-auto">
-      <div className="min-w-0 flex-1 @min-[32rem]/settings-row:w-72 @min-[32rem]/settings-row:flex-none">
-        <CheckoutGroupingSelect member={member} />
-      </div>
-      {hasMultipleCheckouts ? (
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={!editableIds.has(member.environmentId)}
-          onClick={() => void removeMembers([member])}
-          aria-label={gt("Remove checkout {path}", { path: member.workspaceRoot })}
-        >
-          {gt("Remove", { $context: "verb, removes a checkout" })}
-        </Button>
-      ) : null}
-    </div>
-  );
   const checkoutChoices = (
-    <SettingsSection title={gt("Checkouts")}>
-      <p className="px-3 py-2.5 text-xs text-muted-foreground sm:px-4">
-        <T>
-          Grouping rule decides how each checkout joins project groups in the sidebar. Changing it
-          can move a checkout to a different project.
-        </T>
-      </p>
-      {Array.from(checkoutsByEnvironment, ([environmentId, members]) => {
-        if (checkoutsByEnvironment.size === 1) {
-          return members.map((member) => (
-            <SettingsRow
-              key={member.physicalProjectKey}
-              title={member.environmentLabel ?? gt("Environment")}
-              description={member.workspaceRoot}
-              control={checkoutControls(member)}
-            />
-          ));
-        }
-        const firstMember = members[0]!;
-        const hasMultiple = members.length > 1;
-        const environment = environmentById.get(environmentId);
-        const labels = environment
-          ? settingsScopeEnvironmentLabels(environment, environments)
-          : {
-              primary: firstMember.environmentLabel ?? gt("Environment"),
-              secondary: environmentId,
-            };
-        return (
-          <SettingsRow
-            key={environmentId}
-            title={labels.primary}
-            description={
-              <>
-                {labels.secondary ? (
-                  <span className="block truncate">{labels.secondary}</span>
-                ) : null}
-                {!hasMultiple ? (
-                  <Tooltip>
-                    <TooltipTrigger render={<span className="block truncate" />}>
-                      {firstMember.workspaceRoot}
-                    </TooltipTrigger>
-                    <TooltipPopup>{firstMember.workspaceRoot}</TooltipPopup>
-                  </Tooltip>
-                ) : null}
-              </>
-            }
-            control={hasMultiple ? undefined : checkoutControls(firstMember)}
-          >
-            {hasMultiple ? (
-              <div className="space-y-3 pb-2 pt-1">
-                {members.map((member) => (
-                  <div
-                    key={member.physicalProjectKey}
-                    className="flex min-w-0 flex-col gap-1.5 @min-[36rem]/settings-row:flex-row @min-[36rem]/settings-row:items-center @min-[36rem]/settings-row:justify-between @min-[36rem]/settings-row:gap-3"
-                  >
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <span className="min-w-0 max-w-full truncate text-xs text-muted-foreground/80" />
-                        }
-                      >
-                        {member.workspaceRoot}
-                      </TooltipTrigger>
-                      <TooltipPopup>{member.workspaceRoot}</TooltipPopup>
-                    </Tooltip>
-                    <div className="shrink-0">{checkoutControls(member)}</div>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-          </SettingsRow>
-        );
-      })}
-    </SettingsSection>
+    <ProjectCheckouts
+      members={group.memberProjects}
+      renderGrouping={(member) => <CheckoutGroupingSelect member={member} />}
+      canRemove={(member) => editableIds.has(member.environmentId)}
+      onRemove={(member) => void removeMembers([member])}
+    />
   );
 
   return (
@@ -557,7 +457,6 @@ function ProjectDetail({
                 : gt("This connection cannot change this project.")}
             </p>
           ) : null}
-          {showPaths ? <ProjectPathRows members={group.memberProjects} /> : null}
           <SettingsRow
             title={gt("Name")}
             description={gt(
@@ -695,9 +594,9 @@ function ProjectDetail({
             </>
           ) : null}
         </SettingsSection>
+        {checkoutChoices}
         <ProjectDefaultsSettings category="project" />
         <ProjectActionsSettings />
-        {checkoutChoices}
         <SettingsSection title={gt("Danger")}>
           <SettingsRow
             title={

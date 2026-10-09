@@ -8,7 +8,7 @@ import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 
 /**
  * The "n environments" caption on a Settings > Projects row. Hovering it
- * lists each environment the project is set up on with its checkout paths,
+ * lists each environment the project is set up on with its main checkout paths,
  * styled like the setting inheritance popover.
  */
 export function ProjectEnvironmentsPopover({
@@ -22,11 +22,17 @@ export function ProjectEnvironmentsPopover({
       const environment = environments.find(
         (candidate) => candidate.environmentId === environmentId,
       );
+      const checkouts = members.filter((member) => member.environmentId === environmentId);
+      const mainCheckouts = checkouts.filter(
+        (member) => member.repositoryIdentity?.linkedWorktree !== true,
+      );
       return {
         environmentId,
         label: environment?.label ?? "Unavailable environment",
         machine: resolveEnvironmentMachineKind(environment?.serverConfig ?? null),
-        members: members.filter((member) => member.environmentId === environmentId),
+        // Worktrees stay in the project's own settings; an environment with only
+        // worktrees still lists them so it never shows up empty.
+        members: mainCheckouts.length > 0 ? mainCheckouts : checkouts,
       };
     },
   );

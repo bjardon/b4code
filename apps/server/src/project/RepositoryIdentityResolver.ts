@@ -354,13 +354,26 @@ const resolveRepositoryIdentityFromCacheKey = Effect.fn(
     originUrl === undefined || originUrl === remote.remoteUrl
       ? keyUrl
       : yield* sshResolvedRemoteUrl(originUrl);
-  return buildRepositoryIdentity({
+  const identity = buildRepositoryIdentity({
     ...remote,
     keyUrl,
     originUrl,
     originKeyUrl,
     rootPath: cacheKey.rootPath,
   });
+  if (cacheKey.isBare) return identity;
+  // A linked worktree keeps its own git dir under the main checkout's common dir.
+  const gitDirsResult = yield* runGit([
+    "rev-parse",
+    "--path-format=absolute",
+    "--git-dir",
+    "--git-common-dir",
+  ]);
+  if (gitDirsResult._tag === "None" || gitDirsResult.value.code !== 0) return identity;
+  const [gitDir, commonDir] = gitDirsResult.value.stdout.trim().split(/\r?\n/);
+  return gitDir && commonDir && gitDir !== commonDir
+    ? { ...identity, linkedWorktree: true }
+    : identity;
 });
 
 export const make = Effect.fn("RepositoryIdentityResolver.make")(function* (
