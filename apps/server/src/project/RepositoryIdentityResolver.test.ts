@@ -156,6 +156,42 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
       }).pipe(Effect.provide(RepositoryIdentityResolver.layer)),
   );
 
+  it.effect("marks linked worktrees but not the main checkout", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const tempDir = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "t3-repository-identity-worktree-test-",
+      });
+      const mainCheckout = path.join(tempDir, "main");
+      const worktree = path.join(tempDir, "feature");
+
+      yield* fileSystem.makeDirectory(mainCheckout);
+      yield* git(mainCheckout, ["init"]);
+      yield* git(mainCheckout, ["remote", "add", "origin", "git@github.com:T3Tools/t3code.git"]);
+      yield* git(mainCheckout, [
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@example.com",
+        "commit",
+        "--allow-empty",
+        "-m",
+        "init",
+      ]);
+      yield* git(mainCheckout, ["worktree", "add", "-b", "feature", worktree]);
+
+      const resolver = yield* RepositoryIdentityResolver.RepositoryIdentityResolver;
+      const mainIdentity = yield* resolver.resolve(mainCheckout);
+      const worktreeIdentity = yield* resolver.resolve(worktree);
+
+      expect(mainIdentity?.canonicalKey).toBe("github.com/t3tools/t3code");
+      expect(mainIdentity?.linkedWorktree).toBeUndefined();
+      expect(worktreeIdentity?.canonicalKey).toBe("github.com/t3tools/t3code");
+      expect(worktreeIdentity?.linkedWorktree).toBe(true);
+    }).pipe(Effect.provide(RepositoryIdentityResolver.layer)),
+  );
+
   it.effect("returns null for non-git folders and repos without remotes", () =>
     Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;

@@ -33,7 +33,6 @@ import { Alert, AlertDescription } from "../ui/alert";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { stackedThreadToast, toastManager } from "../ui/toast";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import {
   SettingResetButton,
   SettingsPageContainer,
@@ -45,12 +44,11 @@ import {
   ProjectFaviconPickerDialog,
 } from "./ProjectFaviconPickerDialog";
 import { ProjectActionsSettings } from "./ProjectActionsSettings";
+import { ProjectCheckouts } from "./ProjectCheckouts";
 import { ProjectDefaultsSettings } from "./ProjectDefaultsSettings";
-import { ProjectPathRows } from "./ProjectPathRows";
 import { projectGroupTitleNeedsUpdate } from "./ProjectSettingsPanel.logic";
 import { useSettingsProjectGroups } from "./useSettingsProjectGroups";
 import { readUnloadedThreadCount } from "../../state/olderSettledShelf";
-import { settingsScopeEnvironmentLabels } from "./settingsScopeAxis";
 
 const ProjectIconPickerDialog = lazy(() =>
   import("./ProjectIconPickerDialog").then((module) => ({
@@ -166,7 +164,6 @@ export function ProjectSettingsPanel({
       key={`${selected.projectKey}:${environmentId ?? "all"}:${checkoutKey ?? "all"}`}
       group={scopedGroup}
       hasOtherMembers={members.length < selected.memberProjects.length}
-      showPaths={environmentId !== null || checkoutKey !== null}
     />
   );
 }
@@ -174,11 +171,9 @@ export function ProjectSettingsPanel({
 function ProjectDetail({
   group,
   hasOtherMembers,
-  showPaths,
 }: {
   group: SidebarProjectSnapshot;
   hasOtherMembers: boolean;
-  showPaths: boolean;
 }) {
   const navigate = useNavigate({ from: "/settings" });
   const primaryEnvironmentId = usePrimaryEnvironmentId();
@@ -325,8 +320,6 @@ function ProjectDetail({
     setIsSavingFavicon(false);
   };
 
-  const hasMultipleCheckouts = group.memberProjects.length > 1;
-
   const removeMembers = async (members: ReadonlyArray<SidebarProjectGroupMember>) => {
     if (checkProjectAccess(members, "Failed to remove project")) return;
     const api = readLocalApi();
@@ -388,89 +381,12 @@ function ProjectDetail({
     }
   };
 
-  const checkoutsByEnvironment = new Map<EnvironmentId, SidebarProjectGroupMember[]>();
-  for (const member of group.memberProjects) {
-    const members = checkoutsByEnvironment.get(member.environmentId);
-    if (members) members.push(member);
-    else checkoutsByEnvironment.set(member.environmentId, [member]);
-  }
-  const checkoutRemoveButton = (member: SidebarProjectGroupMember) => (
-    <Button
-      size="sm"
-      variant="outline"
-      disabled={!editableIds.has(member.environmentId)}
-      onClick={() => void removeMembers([member])}
-      aria-label={`Remove checkout ${member.workspaceRoot}`}
-    >
-      Remove
-    </Button>
-  );
   const checkoutChoices = (
-    <SettingsSection title="Checkouts">
-      {Array.from(checkoutsByEnvironment, ([environmentId, members]) => {
-        if (checkoutsByEnvironment.size === 1) {
-          return members.map((member) => (
-            <SettingsRow
-              key={member.physicalProjectKey}
-              title={member.environmentLabel ?? "Environment"}
-              description={member.workspaceRoot}
-              control={checkoutRemoveButton(member)}
-            />
-          ));
-        }
-        const firstMember = members[0]!;
-        const hasMultiple = members.length > 1;
-        const environment = environmentById.get(environmentId);
-        const labels = environment
-          ? settingsScopeEnvironmentLabels(environment, environments)
-          : { primary: firstMember.environmentLabel ?? "Environment", secondary: environmentId };
-        return (
-          <SettingsRow
-            key={environmentId}
-            title={labels.primary}
-            description={
-              <>
-                {labels.secondary ? (
-                  <span className="block truncate">{labels.secondary}</span>
-                ) : null}
-                {!hasMultiple ? (
-                  <Tooltip>
-                    <TooltipTrigger render={<span className="block truncate" />}>
-                      {firstMember.workspaceRoot}
-                    </TooltipTrigger>
-                    <TooltipPopup>{firstMember.workspaceRoot}</TooltipPopup>
-                  </Tooltip>
-                ) : null}
-              </>
-            }
-            control={hasMultiple ? undefined : checkoutRemoveButton(firstMember)}
-          >
-            {hasMultiple ? (
-              <div className="space-y-3 pb-2 pt-1">
-                {members.map((member) => (
-                  <div
-                    key={member.physicalProjectKey}
-                    className="flex min-w-0 items-center justify-between gap-3"
-                  >
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <span className="min-w-0 truncate text-xs text-muted-foreground/80" />
-                        }
-                      >
-                        {member.workspaceRoot}
-                      </TooltipTrigger>
-                      <TooltipPopup>{member.workspaceRoot}</TooltipPopup>
-                    </Tooltip>
-                    <div className="shrink-0">{checkoutRemoveButton(member)}</div>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-          </SettingsRow>
-        );
-      })}
-    </SettingsSection>
+    <ProjectCheckouts
+      members={group.memberProjects}
+      canRemove={(member) => editableIds.has(member.environmentId)}
+      onRemove={(member) => void removeMembers([member])}
+    />
   );
 
   return (
@@ -490,7 +406,6 @@ function ProjectDetail({
                 : "This connection cannot change this project."}
             </p>
           ) : null}
-          {showPaths ? <ProjectPathRows members={group.memberProjects} /> : null}
           <SettingsRow
             title="Name"
             description="The shared name for this project group in the sidebar and thread lists."
@@ -565,9 +480,9 @@ function ProjectDetail({
             }
           />
         </SettingsSection>
+        {checkoutChoices}
         <ProjectDefaultsSettings category="project" />
         <ProjectActionsSettings />
-        {hasMultipleCheckouts ? checkoutChoices : null}
         <SettingsSection title="Danger">
           <SettingsRow
             title={
