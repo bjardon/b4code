@@ -43,8 +43,8 @@ import {
   ProjectFaviconPickerDialog,
 } from "./ProjectFaviconPickerDialog";
 import { ProjectActionsSettings } from "./ProjectActionsSettings";
+import { ProjectCheckouts } from "./ProjectCheckouts";
 import { ProjectDefaultsSettings } from "./ProjectDefaultsSettings";
-import { ProjectPathRows } from "./ProjectPathRows";
 import { projectGroupTitleNeedsUpdate } from "./ProjectSettingsPanel.logic";
 import { useSettingsProjectGroups } from "./useSettingsProjectGroups";
 
@@ -157,7 +157,6 @@ export function ProjectSettingsPanel({
       key={`${selected.projectKey}:${environmentId ?? "all"}:${checkoutKey ?? "all"}`}
       group={scopedGroup}
       hasOtherMembers={members.length < selected.memberProjects.length}
-      showPaths={environmentId !== null || checkoutKey !== null}
     />
   );
 }
@@ -165,11 +164,9 @@ export function ProjectSettingsPanel({
 function ProjectDetail({
   group,
   hasOtherMembers,
-  showPaths,
 }: {
   group: SidebarProjectSnapshot;
   hasOtherMembers: boolean;
-  showPaths: boolean;
 }) {
   const navigate = useNavigate({ from: "/settings" });
   const primaryEnvironmentId = usePrimaryEnvironmentId();
@@ -331,8 +328,6 @@ function ProjectDetail({
     [updateAllMembers],
   );
 
-  const hasMultipleCheckouts = group.memberProjects.length > 1;
-
   const removeMembers = useCallback(
     async (members: ReadonlyArray<SidebarProjectGroupMember>) => {
       if (checkProjectAccess(members, "Failed to remove project")) return;
@@ -427,26 +422,11 @@ function ProjectDetail({
   );
 
   const checkoutChoices = (
-    <SettingsSection title="Checkouts">
-      {group.memberProjects.map((member) => (
-        <SettingsRow
-          key={member.physicalProjectKey}
-          title={member.environmentLabel ?? "Environment"}
-          description={member.workspaceRoot}
-          control={
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={!editableIds.has(member.environmentId)}
-              onClick={() => void removeMembers([member])}
-              aria-label={`Remove checkout ${member.workspaceRoot}`}
-            >
-              Remove
-            </Button>
-          }
-        />
-      ))}
-    </SettingsSection>
+    <ProjectCheckouts
+      members={group.memberProjects}
+      canRemove={(member) => editableIds.has(member.environmentId)}
+      onRemove={(member) => void removeMembers([member])}
+    />
   );
 
   return (
@@ -466,7 +446,6 @@ function ProjectDetail({
                 : "This connection cannot change this project."}
             </p>
           ) : null}
-          {showPaths ? <ProjectPathRows members={group.memberProjects} /> : null}
           <SettingsRow
             title="Name"
             description="The shared name for this project group in the sidebar and thread lists."
@@ -541,9 +520,9 @@ function ProjectDetail({
             }
           />
         </SettingsSection>
+        {checkoutChoices}
         <ProjectDefaultsSettings category="project" />
         <ProjectActionsSettings />
-        {hasMultipleCheckouts ? checkoutChoices : null}
         <SettingsSection title="Danger">
           <SettingsRow
             title={

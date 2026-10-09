@@ -250,6 +250,8 @@ export const RepositoryIdentity = Schema.Struct({
   /** Repository browser URL resolved from the server's configured hosting account. */
   webUrl: Schema.optionalKey(TrimmedNonEmptyString),
   rootPath: Schema.optionalKey(TrimmedNonEmptyString),
+  /** Set when `rootPath` is a linked Git worktree rather than the repository's main checkout. */
+  linkedWorktree: Schema.optionalKey(Schema.Boolean),
   displayName: Schema.optionalKey(TrimmedNonEmptyString),
   provider: Schema.optionalKey(TrimmedNonEmptyString),
   owner: Schema.optionalKey(TrimmedNonEmptyString),

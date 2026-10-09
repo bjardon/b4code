@@ -104,14 +104,23 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
       expect(calls).toEqual([
         ["-C", "/repo/packages/web", "rev-parse", "--show-toplevel"],
         ["-C", "/repo", "remote", "-v"],
+        ["-C", "/repo", "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir"],
       ]);
 
       const refreshed = yield* resolver.resolve("/repo/packages/web", { refresh: true });
       expect(refreshed?.rootPath).toBe("/repo/packages/web");
       expect(yield* resolver.resolve("/repo/packages/web")).toEqual(refreshed);
-      expect(calls.slice(2)).toEqual([
+      expect(calls.slice(3)).toEqual([
         ["-C", "/repo/packages/web", "rev-parse", "--show-toplevel"],
         ["-C", "/repo/packages/web", "remote", "-v"],
+        [
+          "-C",
+          "/repo/packages/web",
+          "rev-parse",
+          "--path-format=absolute",
+          "--git-dir",
+          "--git-common-dir",
+        ],
       ]);
       remoteUrl = "git@ssh.forge.test:team/repo.git";
       const forgejo = yield* resolver.resolve(rootPath, { refresh: true });
@@ -170,6 +179,7 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
         ["-C", "/repo/packages/web", "rev-parse", "--show-toplevel"],
         ["-C", "/repo/packages/web", "rev-parse", "--show-toplevel"],
         ["-C", "/repo", "remote", "-v"],
+        ["-C", "/repo", "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir"],
       ]);
     }).pipe(Effect.provide(Layer.merge(TestClock.layer(), layerResolver)));
   });
@@ -226,6 +236,42 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
       expect(normalizeResolvedPath(resolvedIdentityRoot)).toBe(
         normalizeResolvedPath(resolvedRepoRoot),
       );
+    }).pipe(Effect.provide(RepositoryIdentityResolver.layer)),
+  );
+
+  it.effect("marks linked worktrees but not the main checkout", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const tempDir = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "t3-repository-identity-worktree-test-",
+      });
+      const mainCheckout = path.join(tempDir, "main");
+      const worktree = path.join(tempDir, "feature");
+
+      yield* fileSystem.makeDirectory(mainCheckout);
+      yield* git(mainCheckout, ["init"]);
+      yield* git(mainCheckout, ["remote", "add", "origin", "git@github.com:T3Tools/t3code.git"]);
+      yield* git(mainCheckout, [
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@example.com",
+        "commit",
+        "--allow-empty",
+        "-m",
+        "init",
+      ]);
+      yield* git(mainCheckout, ["worktree", "add", "-b", "feature", worktree]);
+
+      const resolver = yield* RepositoryIdentityResolver.RepositoryIdentityResolver;
+      const mainIdentity = yield* resolver.resolve(mainCheckout);
+      const worktreeIdentity = yield* resolver.resolve(worktree);
+
+      expect(mainIdentity?.canonicalKey).toBe("github.com/t3tools/t3code");
+      expect(mainIdentity?.linkedWorktree).toBeUndefined();
+      expect(worktreeIdentity?.canonicalKey).toBe("github.com/t3tools/t3code");
+      expect(worktreeIdentity?.linkedWorktree).toBe(true);
     }).pipe(Effect.provide(RepositoryIdentityResolver.layer)),
   );
 
