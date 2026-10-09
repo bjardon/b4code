@@ -1,5 +1,5 @@
 diff --git a/apps/desktop/package.json b/apps/desktop/package.json
-index ddef3ca9eb..c7e42b19ca 100644
+index 15bbbda6c6..dfeedd5f5a 100644
 --- a/apps/desktop/package.json
 +++ b/apps/desktop/package.json
 @@ -40,5 +40,5 @@
@@ -113,11 +113,11 @@ index ce2ef26295..7dd3c9adc0 100644
          className={cn(
            "truncate [text-box:trim-both_cap_alphabetic]",
 diff --git a/scripts/build-desktop-artifact.ts b/scripts/build-desktop-artifact.ts
-index 9b2e26c8f4..56bd9b58e9 100644
+index 301b42613d..2b4de753df 100644
 --- a/scripts/build-desktop-artifact.ts
 +++ b/scripts/build-desktop-artifact.ts
-@@ -54,7 +54,7 @@ import { Command, Flag } from "effect/unstable/cli";
- import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
+@@ -54,7 +54,7 @@ import { Command, Flag } from "effect/cli";
+ import { ChildProcess, ChildProcessSpawner } from "effect/process";
  
  const LINUX_ICON_SIZES = [16, 22, 24, 32, 48, 64, 128, 256, 512] as const;
 -const DESKTOP_APP_ID = "com.t3tools.t3code";
@@ -125,7 +125,7 @@ index 9b2e26c8f4..56bd9b58e9 100644
  const APPLE_TEAM_ID_PATTERN = /^[A-Z0-9]{10}$/u;
  
  const BuildPlatform = Schema.Literals(["mac", "linux", "win"]);
-@@ -2725,8 +2725,8 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
+@@ -2726,8 +2726,8 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
        },
        protocols: [
          {
@@ -136,7 +136,7 @@ index 9b2e26c8f4..56bd9b58e9 100644
          },
        ],
        ...(signed ? { sign: path.join(repoRoot, "scripts/sign-macos.ts") } : {}),
-@@ -2779,8 +2779,8 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
+@@ -2786,8 +2786,8 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
        // t3code:// OAuth callbacks to the app.
        protocols: [
          {
@@ -147,7 +147,7 @@ index 9b2e26c8f4..56bd9b58e9 100644
          },
        ],
        desktop: {
-@@ -3692,7 +3692,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
+@@ -3705,7 +3705,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
        ? path.join(stageAppDir, WINDOWS_SERVER_RESOURCE_SOURCE_DIR, WINDOWS_SERVER_ASAR_RESOURCE)
        : undefined;
    const stagePackageJson: StagePackageJson = {
