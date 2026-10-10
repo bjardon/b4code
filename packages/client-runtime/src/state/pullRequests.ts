@@ -298,6 +298,25 @@ export function createPullRequestEnvironmentAtoms<R, E>(
           ]),
       },
     }),
+    /**
+     * The review walkthrough for one head of a pull request. Writing one takes the model a minute or
+     * more, and the head is part of the input, so a push asks again and nothing else needs to.
+     */
+    walkthrough: createEnvironmentRpcQueryAtomFamily(runtime, {
+      label: "environment-data:pull-requests:walkthrough",
+      tag: WS_METHODS.pullRequestsWalkthrough,
+      staleTimeMs: 30 * 60_000,
+    }),
+    regenerateWalkthrough: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:pull-requests:regenerate-walkthrough",
+      tag: WS_METHODS.pullRequestsWalkthrough,
+      scheduler: commandScheduler,
+      concurrency: {
+        mode: "singleFlight",
+        key: ({ environmentId, input }) =>
+          JSON.stringify([environmentId, input.projectId, input.repository, input.number]),
+      },
+    }),
     filesViewed: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:pull-requests:files-viewed",
       tag: WS_METHODS.pullRequestsFilesViewed,

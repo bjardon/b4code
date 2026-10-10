@@ -222,6 +222,7 @@ import * as HostResources from "./resourceTelemetry/HostResources.ts";
 import * as AnalyticsService from "./telemetry/AnalyticsService.ts";
 import * as UsageService from "./usage/UsageService.ts";
 import * as TraceDiagnostics from "./diagnostics/TraceDiagnostics.ts";
+import * as PullRequestWalkthroughService from "./pullRequest/PullRequestWalkthroughService.ts";
 import * as PullRequestService from "./pullRequest/PullRequestService.ts";
 import { listLinkedPullRequestThreads } from "./pullRequest/linkedThreads.ts";
 import { pullRequestSyncKey } from "./pullRequest/pullRequestSyncKey.ts";
@@ -1227,6 +1228,8 @@ const layerWsRpc = (
       const scheduledTasks = yield* ScheduledTasks.ScheduledTaskService;
       const secretRequests = yield* SecretRequests.SecretRequests;
       const pullRequests = yield* PullRequestService.PullRequestService;
+      const pullRequestWalkthroughs =
+        yield* PullRequestWalkthroughService.PullRequestWalkthroughService;
       const pullRequestSync = yield* PullRequestSyncReactor.PullRequestSyncReactor;
       const deviceService = yield* DeviceService.DeviceService;
       const deviceHostContext =
@@ -2490,6 +2493,8 @@ const layerWsRpc = (
           withPullRequestViewer(input, pullRequests.threadComments(input)),
         [WS_METHODS.pullRequestsDiffFileContents]: (input) =>
           withPullRequestViewer(input, pullRequests.diffFileContents(input)),
+        [WS_METHODS.pullRequestsWalkthrough]: (input) =>
+          withPullRequestViewer(input, pullRequestWalkthroughs.walkthrough(input)),
         [WS_METHODS.pullRequestsFilesViewed]: (input) =>
           withPullRequestViewer(input, pullRequests.filesViewed(input)),
         [WS_METHODS.pullRequestsSetFilesViewed]: (input) =>

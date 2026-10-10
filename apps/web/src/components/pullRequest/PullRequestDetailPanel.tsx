@@ -184,7 +184,7 @@ import {
 } from "./pullRequestPresentation";
 import { PullRequestGlyph } from "./pullRequestIcons";
 
-type DetailTab = "summary" | "timeline" | "code";
+type DetailTab = "summary" | "timeline" | "walkthrough" | "code";
 
 const ACTION_SUCCESS_LABELS: Record<PullRequestAction, string> = {
   merge: "Pull request merged",
@@ -252,6 +252,7 @@ const UPDATE_BRANCH_REBASE_FAILURE_HINT =
 const TABS: ReadonlyArray<{ value: DetailTab; label: string }> = [
   { value: "summary", label: "Summary" },
   { value: "timeline", label: "Timeline" },
+  { value: "walkthrough", label: "Walkthrough" },
   { value: "code", label: "Code" },
 ];
 
@@ -259,6 +260,8 @@ const TABS: ReadonlyArray<{ value: DetailTab; label: string }> = [
 // Start the download on tab hover or focus, before the click, without loading it for every PR.
 const loadCodeTab = () => import("./PullRequestCodeTab");
 const PullRequestCodeTab = lazy(loadCodeTab);
+const loadWalkthroughTab = () => import("./PullRequestWalkthroughTab");
+const PullRequestWalkthroughTab = lazy(loadWalkthroughTab);
 
 /**
  * What the last hand-off wrote into each draft, kept outside React because the panel that wrote it
@@ -1450,7 +1453,10 @@ export function PullRequestDetailPanel({
   // uses this optimistic tab set to reserve the same chrome; a host without a patch removes Code
   // when its capabilities arrive.
   const visibleTabs = TABS.filter(
-    (item) => item.value !== "code" || detail === null || detail.capabilities.diff,
+    (item) =>
+      (item.value !== "code" && item.value !== "walkthrough") ||
+      detail === null ||
+      detail.capabilities.diff,
   );
   // The Code tab can be opened while the detail is still on its way, and the detail may then say
   // this host has no patch to show. The tab goes, so whoever was standing on it is moved back to
@@ -2539,6 +2545,7 @@ export function PullRequestDetailPanel({
             onValueChange={setTab}
             onTabIntent={(item) => {
               if (item === "code") void loadCodeTab();
+              if (item === "walkthrough") void loadWalkthroughTab();
             }}
           >
             {tab === "summary" ? (
@@ -2754,6 +2761,17 @@ export function PullRequestDetailPanel({
                     onRefresh={refreshDetail}
                   />
                 )}
+              </div>
+            ) : null}
+            {mountedTabs.has("walkthrough") ? (
+              <div className={cn("absolute inset-0", tab !== "walkthrough" && "invisible")}>
+                <Suspense fallback={<DiffPanelLoadingState label="Loading walkthrough..." />}>
+                  <PullRequestWalkthroughTab
+                    environmentId={environmentId}
+                    reference={reference}
+                    detail={detail}
+                  />
+                </Suspense>
               </div>
             ) : null}
             {mountedTabs.has("code") ? (

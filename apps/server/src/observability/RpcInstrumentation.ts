@@ -104,6 +104,7 @@ const RPC_AGGREGATES = {
   [WS_METHODS.pullRequestsChecks]: "pull-requests",
   [WS_METHODS.pullRequestsActivity]: "pull-requests",
   [WS_METHODS.pullRequestsThreadComments]: "pull-requests",
+  [WS_METHODS.pullRequestsWalkthrough]: "pull-requests",
   [WS_METHODS.pullRequestsDiffFileContents]: "pull-requests",
   [WS_METHODS.pullRequestsFilesViewed]: "pull-requests",
   [WS_METHODS.pullRequestsRunAction]: "pull-requests",

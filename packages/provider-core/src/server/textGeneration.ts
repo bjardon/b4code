@@ -74,6 +74,28 @@ export interface ThreadTitleGenerationResult {
   needsRefinement?: boolean | undefined;
 }
 
+export interface PrWalkthroughGenerationInput {
+  cwd: string;
+  title: string;
+  body: string;
+  baseBranch: string;
+  headBranch: string;
+  /** Every hunk under its id. */
+  hunks: string;
+  /** What model and provider to use for generation. */
+  modelSelection: ModelSelection;
+}
+
+export interface PrWalkthroughGenerationResult {
+  overview: string;
+  sections: ReadonlyArray<{
+    title: string;
+    summary: string;
+    kind: "core" | "supporting";
+    hunkIds: ReadonlyArray<string>;
+  }>;
+}
+
 /** Commit, change request, branch, and title generation backed by one provider instance. */
 export interface ProviderTextGeneration {
   /**
@@ -101,4 +123,9 @@ export interface ProviderTextGeneration {
   readonly generateThreadTitle: (
     input: ThreadTitleGenerationInput,
   ) => Effect.Effect<ThreadTitleGenerationResult, TextGenerationError>;
+
+  /** Group a pull request's hunks into narrated review sections. Absent where unsupported. */
+  readonly generatePrWalkthrough?: (
+    input: PrWalkthroughGenerationInput,
+  ) => Effect.Effect<PrWalkthroughGenerationResult, TextGenerationError>;
 }

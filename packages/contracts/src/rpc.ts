@@ -159,6 +159,7 @@ import {
   ProviderUploadFeedbackResult,
 } from "./provider.ts";
 import { ProviderInstanceId, ProviderInstanceMutation } from "./providerInstance.ts";
+import { PullRequestWalkthrough, PullRequestWalkthroughInput } from "./pullRequestWalkthrough.ts";
 import {
   PullRequestActionInput,
   PullRequestActivity,
@@ -525,6 +526,7 @@ export const WS_METHODS = {
   pullRequestsActivity: "pullRequests.activity",
   pullRequestsThreadComments: "pullRequests.threadComments",
   pullRequestsDiffFileContents: "pullRequests.diffFileContents",
+  pullRequestsWalkthrough: "pullRequests.walkthrough",
   pullRequestsFilesViewed: "pullRequests.filesViewed",
   pullRequestsSetFilesViewed: "pullRequests.setFilesViewed",
   pullRequestsRunAction: "pullRequests.runAction",
@@ -999,6 +1001,12 @@ const WsPullRequestsThreadCommentsRpc = Rpc.make(WS_METHODS.pullRequestsThreadCo
 const WsPullRequestsDiffFileContentsRpc = Rpc.make(WS_METHODS.pullRequestsDiffFileContents, {
   payload: PullRequestDiffFileContentsInput,
   success: PullRequestDiffFileContentsResult,
+  error: PullRequestRpcError,
+});
+
+const WsPullRequestsWalkthroughRpc = Rpc.make(WS_METHODS.pullRequestsWalkthrough, {
+  payload: PullRequestWalkthroughInput,
+  success: PullRequestWalkthrough,
   error: PullRequestRpcError,
 });
 
@@ -1884,6 +1892,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsPullRequestsActivityRpc,
   WsPullRequestsThreadCommentsRpc,
   WsPullRequestsDiffFileContentsRpc,
+  WsPullRequestsWalkthroughRpc,
   WsPullRequestsFilesViewedRpc,
   WsPullRequestsSetFilesViewedRpc,
   WsPullRequestsRunActionRpc,

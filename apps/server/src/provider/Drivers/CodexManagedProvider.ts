@@ -251,6 +251,7 @@ export const makeManagedCodexProvider = Effect.fn("makeManagedCodexProvider")(fu
           }),
       ),
     );
+  const nativePrWalkthrough = nativeGeneration.generatePrWalkthrough;
   const textGeneration: ProviderInstance["textGeneration"] = {
     generateCommitMessage: (value) =>
       protect("generateCommitMessage", nativeGeneration.generateCommitMessage(value)),
@@ -260,6 +261,12 @@ export const makeManagedCodexProvider = Effect.fn("makeManagedCodexProvider")(fu
       protect("generateBranchName", nativeGeneration.generateBranchName(value)),
     generateThreadTitle: (value) =>
       protect("generateThreadTitle", nativeGeneration.generateThreadTitle(value)),
+    ...(nativePrWalkthrough === undefined
+      ? {}
+      : {
+          generatePrWalkthrough: (value) =>
+            protect("generatePrWalkthrough", nativePrWalkthrough(value)),
+        }),
   };
   return {
     instanceId,

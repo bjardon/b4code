@@ -13,6 +13,7 @@ import { type ChatAttachment, type ModelSelection, TextGenerationError } from "@
 import { formatGeneratedBranchName, sanitizeFeatureBranchName } from "@t3tools/shared/git";
 import { extractJsonObject } from "@t3tools/shared/schemaJson";
 
+import { buildPrWalkthroughPrompt } from "./prWalkthroughPrompt.ts";
 import type { ProviderTextGeneration } from "./textGeneration.ts";
 import {
   buildBranchNamePrompt,
@@ -148,10 +149,29 @@ export function fromRunner(name: string, run: Runner): ProviderTextGeneration {
     };
   });
 
+  const generatePrWalkthrough: NonNullable<ProviderTextGeneration["generatePrWalkthrough"]> =
+    Effect.fn(`${name}.generatePrWalkthrough`)(function* (input) {
+      const generated = yield* run({
+        operation: "generatePrWalkthrough",
+        cwd: input.cwd,
+        modelSelection: input.modelSelection,
+        ...buildPrWalkthroughPrompt(input),
+      });
+      return {
+        overview: generated.overview.trim(),
+        sections: generated.sections.map((section) => ({
+          ...section,
+          title: section.title.trim(),
+          summary: section.summary.trim(),
+        })),
+      };
+    });
+
   return {
     generateCommitMessage,
     generatePrContent,
     generateBranchName,
     generateThreadTitle,
+    generatePrWalkthrough,
   } satisfies ProviderTextGeneration;
 }
