@@ -1,3 +1,5 @@
+<img src="../fork/icons/sticker/macos-1024.png" alt="The B4 Code icon, a B4 sticker over the T3 Code icon" width="128">
+
 # b4code
 
 b4code is my personal fork of [T3 Code](https://github.com/pingdotgg/t3code), the GUI for coding agents built by the T3 Code team. It's the same app underneath, shamelessly renamed and bent toward how I like to work.
