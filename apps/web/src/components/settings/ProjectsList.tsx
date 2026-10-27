@@ -6,7 +6,6 @@ import {
 } from "@t3tools/client-runtime/state/runtime";
 import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { PlusIcon, Settings2Icon, Trash2Icon } from "lucide-react";
-import { useMemo } from "react";
 
 import { openCommandPalette } from "../../commandPaletteBus";
 import { useComposerDraftStore } from "../../composerDraftStore";
@@ -58,7 +57,7 @@ export function ProjectsList() {
   const threads = useThreadShells();
   const deleteProject = useAtomCommand(projectEnvironment.delete, { reportFailure: false });
 
-  const entries = useMemo((): ProjectEntry[] => {
+  const entries = ((): ProjectEntry[] => {
     const lastThreadActivity = new Map<string, string>();
     for (const thread of threads) {
       const key = `${thread.environmentId}:${thread.projectId}`;
@@ -91,7 +90,7 @@ export function ProjectsList() {
         ];
       })
       .sort((left, right) => right.lastActivityAt.localeCompare(left.lastActivityAt));
-  }, [groups, search.machine, threads]);
+  })();
 
   const removeProject = async ({ group, members, partial }: ProjectEntry) => {
     const api = readLocalApi();
