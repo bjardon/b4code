@@ -162,7 +162,7 @@ async function build() {
   }
   if (serviceInstalled()) {
     const restartedAt = Date.now();
-    installService();
+    restartService();
     await waitForServer(restartedAt);
   } else console.log("b4: built. Run `node fork/b4.ts service` to start it in the background.");
 }
@@ -255,6 +255,15 @@ function installDesktopApp() {
 
 function serviceInstalled(): boolean {
   return NodeFS.existsSync(isMac ? launchdPlistPath : systemdUnitPath);
+}
+
+function restartService() {
+  if (isMac) {
+    run("launchctl", ["kickstart", "-k", `gui/${NodeOS.userInfo().uid}/${LAUNCHD_LABEL}`]);
+  } else {
+    run("systemctl", ["--user", "restart", "b4-code.service"]);
+  }
+  console.log("b4: restarted the service.");
 }
 
 // The deploy log's last line is how an agent whose session the restart ended

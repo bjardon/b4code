@@ -39,7 +39,7 @@ node fork/b4.ts service
 node fork/b4.ts pair
 ```
 
-`deploy` resets the clone to `origin/main`, applies `branding.patch`, installs dependencies, builds the server and web client, rewrites and restarts the service, and waits for the server to answer. It refuses to run from any other checkout because the reset discards local changes. Started from a session on this server, such as an agent's, it runs in the background and logs to `~/.b4-code/logs/deploy.log`, because the restart ends that session.
+`deploy` resets the clone to `origin/main`, applies `branding.patch`, installs dependencies, builds the server and web client, restarts the service, and waits for the server to answer. It refuses to run from any other checkout because the reset discards local changes. Started from a session on this server, such as an agent's, it runs in the background and logs to `~/.b4-code/logs/deploy.log`, because the restart ends that session.
 
 The repo is public and the deploy clone only fetches, so HTTPS needs no credentials or github.com SSH host key. An SSH clone works too.
 
@@ -49,7 +49,7 @@ On macOS, `deploy` also builds the B4 Code desktop app and installs it to `/Appl
 
 `signing` creates a self-signed code-signing identity, "b4code local", in the login keychain, and `deploy` signs B4 Code with it. Run it once per Mac, before the first deploy. A local build has no quarantine flag, so Gatekeeper opens it without a prompt either way. The identity matters for the keychain: macOS ties "Always Allow" to the app's signature, and an ad-hoc signature changes with every build, so B4 Code would prompt for its own keychain item after each deploy. The certificate stays untrusted, and `codesign` doesn't need it trusted. Without the identity, `deploy` falls back to ad-hoc signing.
 
-`service` writes a launchd agent on macOS or a systemd user unit on Linux, using the Node that ran it and the current `PATH`, and `deploy` rewrites an installed one the same way. A Homebrew Node is written as its `opt` link, so `brew upgrade` doesn't strand the service. The launchd agent raises the open-file limit from launchd's 256, which the server's file watchers exhaust. Rerun `service` after changing `B4_PORT`, `B4_HOST`, or `B4_HOME`. On Linux, the unit only survives logout with lingering enabled (`loginctl enable-linger`).
+`service` writes a launchd agent on macOS or a systemd user unit on Linux, using the Node that ran it and the current `PATH`. A Homebrew Node is written as its `opt` link, so `brew upgrade` doesn't strand the service. The launchd agent raises the open-file limit from launchd's 256, which the server's file watchers exhaust. `deploy` only restarts the service, so rerun `service` after changing `B4_PORT`, `B4_HOST`, or `B4_HOME`, or after a Node upgrade outside Homebrew (the devbox's pnpm Node lives under a versioned path). Set the same `B4_PORT` and `B4_HOST` each time, or the unit falls back to `127.0.0.1:3780`. On Linux, the unit only survives logout with lingering enabled (`loginctl enable-linger`).
 
 `pair` prints a one-time link. Paste it into **Settings → Connections → Add environment** in the desktop app, or open it in a browser to use the fork's own web UI.
 
