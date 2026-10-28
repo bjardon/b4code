@@ -162,7 +162,7 @@ async function build() {
   }
   if (serviceInstalled()) {
     const restartedAt = Date.now();
-    restartService();
+    installService();
     await waitForServer(restartedAt);
   } else console.log("b4: built. Run `node fork/b4.ts service` to start it in the background.");
 }
@@ -257,15 +257,6 @@ function serviceInstalled(): boolean {
   return NodeFS.existsSync(isMac ? launchdPlistPath : systemdUnitPath);
 }
 
-function restartService() {
-  if (isMac) {
-    run("launchctl", ["kickstart", "-k", `gui/${NodeOS.userInfo().uid}/${LAUNCHD_LABEL}`]);
-  } else {
-    run("systemctl", ["--user", "restart", "b4-code.service"]);
-  }
-  console.log("b4: restarted the service.");
-}
-
 // The deploy log's last line is how an agent whose session the restart ended
 // learns that the server came back. The server records its address once it
 // listens, which also covers a service installed with another B4_PORT or B4_HOST.
@@ -309,9 +300,18 @@ function systemdQuote(value: string): string {
   return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }
 
+// execPath resolves Homebrew's symlinks to a versioned Cellar directory that the
+// next `brew upgrade` deletes. The formula's opt link survives upgrades.
+function stableNodePath(): string {
+  const cellar = /^(.*)\/Cellar\/([^/]+)\/[^/]+\/(.*)$/.exec(process.execPath);
+  if (cellar === null) return process.execPath;
+  const optPath = `${cellar[1]}/opt/${cellar[2]}/${cellar[3]}`;
+  return NodeFS.existsSync(optPath) ? optPath : process.execPath;
+}
+
 function installService() {
   if (!NodeFS.existsSync(serverEntry)) fail(`${serverEntry} is missing; run deploy first.`);
-  const program = [process.execPath, serverEntry, "serve", "--port", String(port), "--host", host];
+  const program = [stableNodePath(), serverEntry, "serve", "--port", String(port), "--host", host];
   // The service inherits this shell's PATH so it finds claude, codex, and agent.
   const environment = { T3CODE_HOME: home, PATH: process.env.PATH ?? "/usr/bin:/bin" };
   // The server logs a startup pairing token, so only this user may read the home.
@@ -339,6 +339,9 @@ function installService() {
       `  <key>WorkingDirectory</key><string>${xml(NodeOS.homedir())}</string>`,
       "  <key>RunAtLoad</key><true/>",
       "  <key>KeepAlive</key><true/>",
+      // launchd's default of 256 open files runs out under the server's file watchers.
+      "  <key>SoftResourceLimits</key>",
+      "  <dict><key>NumberOfFiles</key><integer>10240</integer></dict>",
       `  <key>StandardOutPath</key><string>${xml(logPath)}</string>`,
       `  <key>StandardErrorPath</key><string>${xml(logPath)}</string>`,
       "</dict>",
