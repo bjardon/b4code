@@ -8,11 +8,13 @@
  *   node fork/b4.ts deploy    reset to origin/main, brand, build, restart; on macOS also
  *                             install the B4 Code desktop client (deploy checkout)
  *   node fork/b4.ts service   install or refresh the background service
+ *   node fork/b4.ts doctor    check the service, its node, and the server (--all adds the devbox)
  *   node fork/b4.ts pair      print a one-time pairing link for a new client
  *   node fork/b4.ts signing   create the self-signed identity that signs B4 Code (macOS)
  *
  * B4_HOME (default ~/.b4-code), B4_PORT (3780), and B4_HOST (127.0.0.1) pick the
- * data directory and bind address. `service` bakes them into the unit.
+ * data directory and bind address. `service` saves the address and PATH in
+ * B4_HOME/service.json, and later `service` and `deploy` runs reuse them.
  */
 import * as NodeChildProcess from "node:child_process";
 import * as NodeCrypto from "node:crypto";
@@ -24,8 +26,10 @@ const repoRoot = NodePath.resolve(import.meta.dirname, "..");
 const home = NodePath.resolve(
   process.env.B4_HOME?.trim() || NodePath.join(NodeOS.homedir(), ".b4-code"),
 );
-const port = parsePort(process.env.B4_PORT?.trim() || "3780");
-const host = process.env.B4_HOST?.trim() || "127.0.0.1";
+const serviceSettingsPath = NodePath.join(home, "service.json");
+const buildRecordPath = NodePath.join(home, "build.json");
+const serviceLogPath = NodePath.join(home, "logs/service.log");
+const deployCheckout = NodePath.join(home, "src");
 const serverEntry = NodePath.join(repoRoot, "apps/server/dist/bin.mjs");
 
 // A standalone script with no Effect runtime to inject the host platform.
@@ -61,6 +65,7 @@ const APP_ICON_TARGETS = {
 } as const;
 
 const LAUNCHD_LABEL = "dev.b4code.server";
+const DEVBOX_SSH_HOST = "devbox";
 const launchdPlistPath = NodePath.join(
   NodeOS.homedir(),
   "Library/LaunchAgents",
@@ -116,7 +121,6 @@ function sync() {
 function deploy() {
   // `reset --hard` below discards local changes, so it only runs in the checkout
   // reserved for deploys, never in one used for development.
-  const deployCheckout = NodePath.join(home, "src");
   if (repoRoot !== deployCheckout) {
     fail(`deploy only runs from ${deployCheckout}; this checkout is ${repoRoot}.`);
   }
@@ -160,9 +164,20 @@ async function build() {
   } else {
     run("vp", ["run", "--filter", "t3", "build"]);
   }
+  // doctor compares this with the service's node, since a new Node major breaks
+  // native modules until the next deploy reinstalls them.
+  const buildRecord = {
+    node: process.version,
+    commit: read("git", ["rev-parse", "--short", "HEAD"]),
+  };
+  NodeFS.writeFileSync(buildRecordPath, `${JSON.stringify(buildRecord, null, 2)}\n`);
   if (serviceInstalled()) {
     const restartedAt = Date.now();
-    restartService();
+    const saved = savedServiceSettings();
+    if (saved === undefined) {
+      restartService();
+      console.log("b4: run `node fork/b4.ts service` once so deploys refresh the service.");
+    } else installService(saved);
     await waitForServer(restartedAt);
   } else console.log("b4: built. Run `node fork/b4.ts service` to start it in the background.");
 }
@@ -309,27 +324,53 @@ function systemdQuote(value: string): string {
   return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }
 
-// execPath resolves Homebrew's symlinks to a versioned Cellar directory that the
-// next `brew upgrade` deletes. The formula's opt link survives upgrades.
-function stableNodePath(): string {
-  const cellar = /^(.*)\/Cellar\/([^/]+)\/[^/]+\/(.*)$/.exec(process.execPath);
-  if (cellar === null) return process.execPath;
-  const optPath = `${cellar[1]}/opt/${cellar[2]}/${cellar[3]}`;
-  return NodeFS.existsSync(optPath) ? optPath : process.execPath;
+interface ServiceSettings {
+  port: number;
+  host: string;
+  path: string;
 }
 
-function installService() {
-  if (!NodeFS.existsSync(serverEntry)) fail(`${serverEntry} is missing; run deploy first.`);
-  const program = [stableNodePath(), serverEntry, "serve", "--port", String(port), "--host", host];
-  // The service inherits this shell's PATH so it finds claude, codex, and agent.
-  const environment = { T3CODE_HOME: home, PATH: process.env.PATH ?? "/usr/bin:/bin" };
-  // The server logs a startup pairing token, so only this user may read the home.
-  NodeFS.mkdirSync(NodePath.join(home, "logs"), { recursive: true });
-  NodeFS.chmodSync(home, 0o700);
+// Deploys rewrite the service from these, since an ssh deploy carries neither
+// B4_PORT and B4_HOST nor the PATH the service was installed with.
+function savedServiceSettings(): ServiceSettings | undefined {
+  let saved: unknown;
+  try {
+    saved = JSON.parse(NodeFS.readFileSync(serviceSettingsPath, "utf8"));
+  } catch {
+    return undefined;
+  }
+  if (typeof saved !== "object" || saved === null) return undefined;
+  if (!("port" in saved) || typeof saved.port !== "number") return undefined;
+  if (!("host" in saved) || typeof saved.host !== "string") return undefined;
+  if (!("path" in saved) || typeof saved.path !== "string") return undefined;
+  return { port: parsePort(String(saved.port)), host: saved.host, path: saved.path };
+}
 
+function serviceSettingsFromShell(): ServiceSettings {
+  const saved = savedServiceSettings();
+  return {
+    port: parsePort(process.env.B4_PORT?.trim() || String(saved?.port ?? 3780)),
+    host: process.env.B4_HOST?.trim() || saved?.host || "127.0.0.1",
+    // The service gets this shell's PATH so it finds node, claude, codex, and agent.
+    path: process.env.PATH ?? "/usr/bin:/bin",
+  };
+}
+
+function serviceDefinition(settings: ServiceSettings): { path: string; text: string } {
+  // Resolving node at each start survives Homebrew and pnpm moving it on upgrade.
+  const program = [
+    "/usr/bin/env",
+    "node",
+    serverEntry,
+    "serve",
+    "--port",
+    String(settings.port),
+    "--host",
+    settings.host,
+  ];
+  const environment = { T3CODE_HOME: home, PATH: settings.path };
   if (isMac) {
-    const logPath = NodePath.join(home, "logs/service.log");
-    const plist = [
+    const text = [
       '<?xml version="1.0" encoding="UTF-8"?>',
       '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
       '<plist version="1.0">',
@@ -351,34 +392,15 @@ function installService() {
       // launchd's default of 256 open files runs out under the server's file watchers.
       "  <key>SoftResourceLimits</key>",
       "  <dict><key>NumberOfFiles</key><integer>10240</integer></dict>",
-      `  <key>StandardOutPath</key><string>${xml(logPath)}</string>`,
-      `  <key>StandardErrorPath</key><string>${xml(logPath)}</string>`,
+      `  <key>StandardOutPath</key><string>${xml(serviceLogPath)}</string>`,
+      `  <key>StandardErrorPath</key><string>${xml(serviceLogPath)}</string>`,
       "</dict>",
       "</plist>",
       "",
     ].join("\n");
-    NodeFS.mkdirSync(NodePath.dirname(launchdPlistPath), { recursive: true });
-    NodeFS.writeFileSync(launchdPlistPath, plist);
-    const domain = `gui/${NodeOS.userInfo().uid}`;
-    run("launchctl", ["bootout", `${domain}/${LAUNCHD_LABEL}`], { allowFailure: true });
-    // bootout returns before the old job is gone, and bootstrap fails until it is.
-    for (let attempt = 0; attempt < 50; attempt++) {
-      const loaded = NodeChildProcess.spawnSync(
-        "launchctl",
-        ["print", `${domain}/${LAUNCHD_LABEL}`],
-        {
-          stdio: "ignore",
-        },
-      );
-      if (loaded.status !== 0) break;
-      sleep(200);
-    }
-    run("launchctl", ["bootstrap", domain, launchdPlistPath]);
-    console.log(`b4: running on http://${host}:${port}, logs in ${logPath}`);
-    return;
+    return { path: launchdPlistPath, text };
   }
-
-  const unit = [
+  const text = [
     "[Unit]",
     "Description=b4-code server",
     "After=network-online.target",
@@ -395,12 +417,198 @@ function installService() {
     "WantedBy=default.target",
     "",
   ].join("\n");
-  NodeFS.mkdirSync(NodePath.dirname(systemdUnitPath), { recursive: true });
-  NodeFS.writeFileSync(systemdUnitPath, unit);
+  return { path: systemdUnitPath, text };
+}
+
+function nodeVersionOn(path: string): string | undefined {
+  const result = NodeChildProcess.spawnSync("/usr/bin/env", ["node", "--version"], {
+    env: { PATH: path },
+    encoding: "utf8",
+  });
+  return result.status === 0 ? result.stdout.trim() : undefined;
+}
+
+function installService(settings: ServiceSettings) {
+  if (!NodeFS.existsSync(serverEntry)) fail(`${serverEntry} is missing; run deploy first.`);
+  if (nodeVersionOn(settings.path) === undefined) fail("the service's PATH has no node on it.");
+  // The server logs a startup pairing token, so only this user may read the home.
+  NodeFS.mkdirSync(NodePath.join(home, "logs"), { recursive: true });
+  NodeFS.chmodSync(home, 0o700);
+  NodeFS.writeFileSync(serviceSettingsPath, `${JSON.stringify(settings, null, 2)}\n`);
+  const definition = serviceDefinition(settings);
+  NodeFS.mkdirSync(NodePath.dirname(definition.path), { recursive: true });
+  NodeFS.writeFileSync(definition.path, definition.text);
+  const address = `http://${settings.host}:${settings.port}`;
+
+  if (isMac) {
+    const domain = `gui/${NodeOS.userInfo().uid}`;
+    run("launchctl", ["bootout", `${domain}/${LAUNCHD_LABEL}`], { allowFailure: true });
+    // bootout returns before the old job is gone, and bootstrap fails until it is.
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const loaded = NodeChildProcess.spawnSync(
+        "launchctl",
+        ["print", `${domain}/${LAUNCHD_LABEL}`],
+        {
+          stdio: "ignore",
+        },
+      );
+      if (loaded.status !== 0) break;
+      sleep(200);
+    }
+    run("launchctl", ["bootstrap", domain, launchdPlistPath]);
+    console.log(`b4: running on ${address}, logs in ${serviceLogPath}`);
+    return;
+  }
+
   run("systemctl", ["--user", "daemon-reload"]);
   run("systemctl", ["--user", "enable", "b4-code.service"]);
   run("systemctl", ["--user", "restart", "b4-code.service"]);
-  console.log(`b4: running on http://${host}:${port}, logs via journalctl --user -u b4-code`);
+  console.log(`b4: running on ${address}, logs via journalctl --user -u b4-code`);
+}
+
+// Read-only. Run it when a client says the server did not answer.
+async function doctor() {
+  if (repoRoot !== deployCheckout) fail(`doctor only runs from ${deployCheckout}.`);
+  let failed = false;
+  const report = (status: "ok" | "warn" | "FAIL", label: string, detail: string) => {
+    if (status === "FAIL") failed = true;
+    console.log(`${status.padEnd(4)}  ${label}: ${detail}`);
+  };
+
+  const settings = savedServiceSettings();
+  if (settings === undefined) {
+    report("FAIL", "service.json", "missing or invalid; run `node fork/b4.ts service`");
+  } else {
+    report("ok", "service.json", `${settings.host}:${settings.port}`);
+    const definition = serviceDefinition(settings);
+    let installed: string | undefined;
+    try {
+      installed = NodeFS.readFileSync(definition.path, "utf8");
+    } catch {
+      installed = undefined;
+    }
+    if (installed === definition.text) report("ok", "service definition", definition.path);
+    else
+      report("FAIL", "service definition", `${definition.path} is out of date; deploy rewrites it`);
+
+    const nodeVersion = nodeVersionOn(settings.path);
+    if (nodeVersion === undefined) report("FAIL", "node", "none on the service's PATH");
+    else {
+      const built = deployedBuild();
+      const major = (version: string) => version.split(".")[0];
+      if (built === undefined) report("warn", "node", `${nodeVersion}; no build record yet`);
+      else if (major(built.node) !== major(nodeVersion)) {
+        report(
+          "FAIL",
+          "node",
+          `${nodeVersion}, but ${built.commit} was built on ${built.node}; redeploy`,
+        );
+      } else report("ok", "node", `${nodeVersion}, running build ${built.commit}`);
+    }
+
+    for (const tool of ["claude", "codex", "agent"]) {
+      const found = NodeChildProcess.spawnSync("/usr/bin/which", [tool], {
+        env: { PATH: settings.path },
+        encoding: "utf8",
+      });
+      if (found.status === 0) report("ok", tool, found.stdout.trim());
+      else report("warn", tool, "not on the service's PATH");
+    }
+  }
+
+  if (isMac) {
+    const job = NodeChildProcess.spawnSync(
+      "launchctl",
+      ["print", `gui/${NodeOS.userInfo().uid}/${LAUNCHD_LABEL}`],
+      { encoding: "utf8" },
+    );
+    const state = /^\tstate = (.+)$/m.exec(job.stdout)?.[1] ?? "not loaded";
+    const lastExit = /last exit code = (.+)$/m.exec(job.stdout)?.[1] ?? "unknown";
+    report(state === "running" ? "ok" : "FAIL", "launchd job", `${state}, last exit ${lastExit}`);
+  } else {
+    const unit = NodeChildProcess.spawnSync(
+      "systemctl",
+      ["--user", "show", "b4-code.service", "-p", "ActiveState,SubState,ExecMainStatus"],
+      { encoding: "utf8" },
+    );
+    const fields = new Map(
+      unit.stdout
+        .trim()
+        .split("\n")
+        .map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1)]),
+    );
+    const active = fields.get("ActiveState") ?? "unknown";
+    const detail = `${active} (${fields.get("SubState") ?? "?"}), last exit ${fields.get("ExecMainStatus") ?? "?"}`;
+    report(active === "active" ? "ok" : "FAIL", "systemd unit", detail);
+  }
+
+  const origin =
+    settings === undefined
+      ? restartedOrigin(NodePath.join(home, "userdata/server-runtime.json"), 0)
+      : `http://${settings.host}:${settings.port}`;
+  if (origin === undefined) report("FAIL", "server", "no address to check");
+  else {
+    const answer = await fetch(`${origin}/.well-known/t3/environment`, {
+      signal: AbortSignal.timeout(3000),
+    }).then(
+      (response) => `HTTP ${response.status}`,
+      (error: unknown) => (error instanceof Error ? error.message : String(error)),
+    );
+    report(answer === "HTTP 200" ? "ok" : "FAIL", "server", `${origin} answered ${answer}`);
+  }
+
+  // A stack's cause lines carry no timestamp, so each takes its entry's.
+  const recentErrors: Array<string> = [];
+  let stamp = "?";
+  for (const line of recentServiceLog()) {
+    stamp = /^\[([\d:.]+)\]/.exec(line)?.[1] ?? stamp;
+    if (!/\b(ERROR|FATAL)\b|EMFILE|EADDRINUSE/.test(line)) continue;
+    recentErrors.push(line.startsWith("[") ? line.trim() : `[${stamp}] ${line.trim()}`);
+  }
+  if (recentErrors.length === 0) report("ok", "recent log", "no errors");
+  for (const line of recentErrors.slice(-3)) report("warn", "recent log", line.slice(0, 160));
+
+  if (process.argv.includes("--all")) {
+    if (!isMac) fail("--all runs from the Mac.");
+    console.log(`\n${DEVBOX_SSH_HOST}:`);
+    const remote = NodeChildProcess.spawnSync(
+      "ssh",
+      [DEVBOX_SSH_HOST, "cd ~/.b4-code/src && node fork/b4.ts doctor"],
+      { stdio: "inherit" },
+    );
+    if (remote.status !== 0) failed = true;
+  }
+  if (failed) process.exitCode = 1;
+}
+
+function recentServiceLog(): ReadonlyArray<string> {
+  if (!isMac) {
+    const journal = NodeChildProcess.spawnSync(
+      "journalctl",
+      ["--user", "-u", "b4-code", "-n", "400", "--no-pager", "-o", "cat"],
+      { encoding: "utf8" },
+    );
+    return journal.stdout.split("\n");
+  }
+  try {
+    const log = NodeFS.readFileSync(serviceLogPath, "utf8");
+    return log.slice(-65536).split("\n");
+  } catch {
+    return [];
+  }
+}
+
+function deployedBuild(): { node: string; commit: string } | undefined {
+  let built: unknown;
+  try {
+    built = JSON.parse(NodeFS.readFileSync(buildRecordPath, "utf8"));
+  } catch {
+    return undefined;
+  }
+  if (typeof built !== "object" || built === null) return undefined;
+  if (!("node" in built) || typeof built.node !== "string") return undefined;
+  if (!("commit" in built) || typeof built.commit !== "string") return undefined;
+  return { node: built.node, commit: built.commit };
 }
 
 function signingIdentityExists(): boolean {
@@ -490,10 +698,11 @@ const commands: Record<string, () => void | Promise<void>> = {
   sync,
   deploy,
   __build: build,
-  service: installService,
+  service: () => installService(serviceSettingsFromShell()),
+  doctor,
   pair,
   signing: createSigningIdentity,
 };
 const command = commands[process.argv[2] ?? ""];
-if (command === undefined) fail("usage: node fork/b4.ts <sync|deploy|service|pair|signing>");
+if (command === undefined) fail("usage: node fork/b4.ts <sync|deploy|service|doctor|pair|signing>");
 await command();
