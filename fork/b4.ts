@@ -428,6 +428,29 @@ function nodeVersionOn(path: string): string | undefined {
   return result.status === 0 ? result.stdout.trim() : undefined;
 }
 
+function nodeExecutableOn(path: string): string | undefined {
+  const result = NodeChildProcess.spawnSync(
+    "/usr/bin/env",
+    ["node", "--print", "process.execPath"],
+    { env: { PATH: path }, encoding: "utf8" },
+  );
+  return result.status === 0 ? result.stdout.trim() : undefined;
+}
+
+function executableOfProcess(pid: string): string | undefined {
+  if (!isMac) {
+    try {
+      return NodeFS.readlinkSync(`/proc/${pid}/exe`).replace(/ \(deleted\)$/, "");
+    } catch {
+      return undefined;
+    }
+  }
+  const files = NodeChildProcess.spawnSync("lsof", ["-a", "-p", pid, "-d", "txt", "-Fn"], {
+    encoding: "utf8",
+  });
+  return /^n(.+)$/m.exec(files.stdout)?.[1];
+}
+
 function installService(settings: ServiceSettings) {
   if (!NodeFS.existsSync(serverEntry)) fail(`${serverEntry} is missing; run deploy first.`);
   if (nodeVersionOn(settings.path) === undefined) fail("the service's PATH has no node on it.");
@@ -516,6 +539,7 @@ async function doctor() {
     }
   }
 
+  let serverPid: string | undefined;
   if (isMac) {
     const job = NodeChildProcess.spawnSync(
       "launchctl",
@@ -524,11 +548,12 @@ async function doctor() {
     );
     const state = /^\tstate = (.+)$/m.exec(job.stdout)?.[1] ?? "not loaded";
     const lastExit = /last exit code = (.+)$/m.exec(job.stdout)?.[1] ?? "unknown";
+    serverPid = /^\tpid = (\d+)$/m.exec(job.stdout)?.[1];
     report(state === "running" ? "ok" : "FAIL", "launchd job", `${state}, last exit ${lastExit}`);
   } else {
     const unit = NodeChildProcess.spawnSync(
       "systemctl",
-      ["--user", "show", "b4-code.service", "-p", "ActiveState,SubState,ExecMainStatus"],
+      ["--user", "show", "b4-code.service", "-p", "ActiveState,SubState,ExecMainStatus,MainPID"],
       { encoding: "utf8" },
     );
     const fields = new Map(
@@ -540,6 +565,24 @@ async function doctor() {
     const active = fields.get("ActiveState") ?? "unknown";
     const detail = `${active} (${fields.get("SubState") ?? "?"}), last exit ${fields.get("ExecMainStatus") ?? "?"}`;
     report(active === "active" ? "ok" : "FAIL", "systemd unit", detail);
+    const mainPid = fields.get("MainPID");
+    serverPid = mainPid === undefined || mainPid === "0" ? undefined : mainPid;
+  }
+
+  // A server stays on the binary it started with after an upgrade deletes it, and
+  // on macOS that binary loses ~/Documents access, so those threads fail to launch.
+  if (serverPid !== undefined) {
+    const running = executableOfProcess(serverPid);
+    const expected = settings === undefined ? undefined : nodeExecutableOn(settings.path);
+    const restart = isMac
+      ? `launchctl kickstart -k gui/${NodeOS.userInfo().uid}/${LAUNCHD_LABEL}`
+      : "systemctl --user restart b4-code.service";
+    if (running === undefined) report("warn", "server node", `can't read pid ${serverPid}`);
+    else if (!NodeFS.existsSync(running)) {
+      report("FAIL", "server node", `${running} no longer exists; run \`${restart}\``);
+    } else if (expected !== undefined && running !== expected) {
+      report("FAIL", "server node", `${running}, not ${expected}; run \`${restart}\``);
+    } else report("ok", "server node", running);
   }
 
   const origin =
