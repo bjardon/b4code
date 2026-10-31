@@ -429,7 +429,7 @@ function serviceSettingsFromShell(): ServiceSettings {
   return {
     port: parsePort(process.env.B4_PORT?.trim() || String(saved?.port ?? 3780)),
     host: process.env.B4_HOST?.trim() || saved?.host || "127.0.0.1",
-    // The service gets this shell's PATH so it finds node, claude, codex, and agent.
+    // The service gets this shell's PATH so threads find node, claude, and codex.
     path: process.env.PATH ?? "/usr/bin:/bin",
   };
 }
@@ -589,7 +589,7 @@ async function doctor() {
       } else report("ok", "node", `${nodeVersion}, running build ${built.commit}`);
     }
 
-    for (const tool of ["claude", "codex", "agent"]) {
+    for (const tool of ["claude", "codex"]) {
       const found = NodeChildProcess.spawnSync("/usr/bin/which", [tool], {
         env: { PATH: settings.path },
         encoding: "utf8",
