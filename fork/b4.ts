@@ -14,7 +14,8 @@
  *
  * B4_HOME (default ~/.b4-code), B4_PORT (3780), and B4_HOST (127.0.0.1) pick the
  * data directory and bind address. `service` saves the address and PATH in
- * B4_HOME/service.json, and later `service` and `deploy` runs reuse them.
+ * B4_HOME/service.json, and later `service` and `deploy` runs reuse them. The
+ * server runs on its own Node in B4_HOME/node, at the version package.json pins.
  */
 import * as NodeChildProcess from "node:child_process";
 import * as NodeCrypto from "node:crypto";
@@ -31,12 +32,13 @@ const buildRecordPath = NodePath.join(home, "build.json");
 const serviceLogPath = NodePath.join(home, "logs/service.log");
 const deployCheckout = NodePath.join(home, "src");
 const serverEntry = NodePath.join(repoRoot, "apps/server/dist/bin.mjs");
+const pinnedNodesDir = NodePath.join(home, "node");
 
 // A standalone script with no Effect runtime to inject the host platform.
 // oxlint-disable-next-line t3code/no-global-process-runtime
 const isMac = NodeOS.platform() === "darwin";
 // oxlint-disable-next-line t3code/no-global-process-runtime
-const macArch = NodeOS.arch() === "arm64" ? "arm64" : "x64";
+const hostArch = NodeOS.arch() === "arm64" ? "arm64" : "x64";
 
 const DESKTOP_APP_NAME = "B4 Code";
 const SIGNING_IDENTITY = "b4code local";
@@ -150,7 +152,82 @@ function deploy() {
   run(process.execPath, [NodePath.join(repoRoot, "fork/b4.ts"), "__build"]);
 }
 
+function pinnedNodeVersion(): string {
+  const manifest: unknown = JSON.parse(
+    NodeFS.readFileSync(NodePath.join(repoRoot, "package.json"), "utf8"),
+  );
+  const version =
+    typeof manifest === "object" &&
+    manifest !== null &&
+    "engines" in manifest &&
+    typeof manifest.engines === "object" &&
+    manifest.engines !== null &&
+    "node" in manifest.engines
+      ? manifest.engines.node
+      : undefined;
+  if (typeof version !== "string" || !/^\d+\.\d+\.\d+$/.test(version)) {
+    fail(`package.json engines.node must be an exact version to pin, got ${String(version)}.`);
+  }
+  return `v${version}`;
+}
+
+function pinnedNodePath(): string {
+  return NodePath.join(pinnedNodesDir, pinnedNodeVersion(), "bin/node");
+}
+
+async function download(url: string): Promise<Buffer> {
+  const response = await fetch(url);
+  if (!response.ok) fail(`${url} answered HTTP ${response.status}.`);
+  return Buffer.from(await response.arrayBuffer());
+}
+
+// The server can't run on a package manager's Node: an upgrade deletes the binary
+// under it, and on macOS that binary then loses ~/Documents access. nodejs.org's
+// macOS builds also keep one signature across versions, so that grant should last.
+async function installPinnedNode() {
+  const version = pinnedNodeVersion();
+  if (NodeFS.existsSync(pinnedNodePath())) return;
+  const name = `node-${version}-${isMac ? "darwin" : "linux"}-${hostArch}`;
+  const archive = `${name}.tar.gz`;
+  const releaseUrl = `https://nodejs.org/dist/${version}`;
+  console.log(`b4: installing Node ${version} in ${pinnedNodesDir}`);
+  const sums = (await download(`${releaseUrl}/SHASUMS256.txt`)).toString("utf8");
+  const expected = sums
+    .split("\n")
+    .find((line) => line.endsWith(`  ${archive}`))
+    ?.split(" ")[0];
+  if (expected === undefined) fail(`SHASUMS256.txt has no entry for ${archive}.`);
+  const bytes = await download(`${releaseUrl}/${archive}`);
+  const actual = NodeCrypto.createHash("sha256").update(bytes).digest("hex");
+  if (actual !== expected) fail(`${archive} has checksum ${actual}, expected ${expected}.`);
+
+  NodeFS.mkdirSync(pinnedNodesDir, { recursive: true });
+  const workDir = NodeFS.mkdtempSync(NodePath.join(pinnedNodesDir, ".install-"));
+  const archivePath = NodePath.join(workDir, archive);
+  NodeFS.writeFileSync(archivePath, bytes);
+  run("tar", ["-xzf", archivePath, "-C", workDir]);
+  NodeFS.renameSync(NodePath.join(workDir, name), NodePath.join(pinnedNodesDir, version));
+  NodeFS.rmSync(workDir, { recursive: true, force: true });
+}
+
+function removeOtherPinnedNodes() {
+  const version = pinnedNodeVersion();
+  for (const entry of NodeFS.readdirSync(pinnedNodesDir)) {
+    if (entry !== version) {
+      NodeFS.rmSync(NodePath.join(pinnedNodesDir, entry), { recursive: true, force: true });
+    }
+  }
+}
+
 async function build() {
+  // The build runs on the Node that will run the server, so native modules match it.
+  if (process.version !== pinnedNodeVersion()) {
+    await installPinnedNode();
+    const pinnedNode = pinnedNodePath();
+    process.env.PATH = `${NodePath.dirname(pinnedNode)}:${process.env.PATH ?? ""}`;
+    run(pinnedNode, [NodePath.join(repoRoot, "fork/b4.ts"), "__build"]);
+    return;
+  }
   // Branding is a packaging step, so main keeps upstream's code and tests. The
   // patch stays applied until the next deploy resets it, and it fails loudly
   // when an upstream sync moves the lines it touches.
@@ -164,8 +241,8 @@ async function build() {
   } else {
     run("vp", ["run", "--filter", "t3", "build"]);
   }
-  // doctor compares this with the service's node, since a new Node major breaks
-  // native modules until the next deploy reinstalls them.
+  // doctor compares this with the pinned Node, since native modules only work on
+  // the Node they were installed under.
   const buildRecord = {
     node: process.version,
     commit: read("git", ["rev-parse", "--short", "HEAD"]),
@@ -179,6 +256,7 @@ async function build() {
       console.log("b4: run `node fork/b4.ts service` once so deploys refresh the service.");
     } else installService(saved);
     await waitForServer(restartedAt);
+    removeOtherPinnedNodes();
   } else console.log("b4: built. Run `node fork/b4.ts service` to start it in the background.");
 }
 
@@ -224,7 +302,7 @@ function installDesktopApp() {
     "--target",
     "zip",
     "--arch",
-    macArch,
+    hostArch,
     "--skip-build",
     "--output-dir",
     outputDir,
@@ -357,10 +435,8 @@ function serviceSettingsFromShell(): ServiceSettings {
 }
 
 function serviceDefinition(settings: ServiceSettings): { path: string; text: string } {
-  // Resolving node at each start survives Homebrew and pnpm moving it on upgrade.
   const program = [
-    "/usr/bin/env",
-    "node",
+    pinnedNodePath(),
     serverEntry,
     "serve",
     "--port",
@@ -420,23 +496,6 @@ function serviceDefinition(settings: ServiceSettings): { path: string; text: str
   return { path: systemdUnitPath, text };
 }
 
-function nodeVersionOn(path: string): string | undefined {
-  const result = NodeChildProcess.spawnSync("/usr/bin/env", ["node", "--version"], {
-    env: { PATH: path },
-    encoding: "utf8",
-  });
-  return result.status === 0 ? result.stdout.trim() : undefined;
-}
-
-function nodeExecutableOn(path: string): string | undefined {
-  const result = NodeChildProcess.spawnSync(
-    "/usr/bin/env",
-    ["node", "--print", "process.execPath"],
-    { env: { PATH: path }, encoding: "utf8" },
-  );
-  return result.status === 0 ? result.stdout.trim() : undefined;
-}
-
 function executableOfProcess(pid: string): string | undefined {
   if (!isMac) {
     try {
@@ -453,7 +512,8 @@ function executableOfProcess(pid: string): string | undefined {
 
 function installService(settings: ServiceSettings) {
   if (!NodeFS.existsSync(serverEntry)) fail(`${serverEntry} is missing; run deploy first.`);
-  if (nodeVersionOn(settings.path) === undefined) fail("the service's PATH has no node on it.");
+  if (!NodeFS.existsSync(pinnedNodePath()))
+    fail(`${pinnedNodePath()} is missing; run deploy first.`);
   // The server logs a startup pairing token, so only this user may read the home.
   NodeFS.mkdirSync(NodePath.join(home, "logs"), { recursive: true });
   NodeFS.chmodSync(home, 0o700);
@@ -514,13 +574,13 @@ async function doctor() {
     else
       report("FAIL", "service definition", `${definition.path} is out of date; deploy rewrites it`);
 
-    const nodeVersion = nodeVersionOn(settings.path);
-    if (nodeVersion === undefined) report("FAIL", "node", "none on the service's PATH");
-    else {
+    const nodeVersion = pinnedNodeVersion();
+    if (!NodeFS.existsSync(pinnedNodePath())) {
+      report("FAIL", "node", `${pinnedNodePath()} is missing; redeploy`);
+    } else {
       const built = deployedBuild();
-      const major = (version: string) => version.split(".")[0];
       if (built === undefined) report("warn", "node", `${nodeVersion}; no build record yet`);
-      else if (major(built.node) !== major(nodeVersion)) {
+      else if (built.node !== nodeVersion) {
         report(
           "FAIL",
           "node",
@@ -569,18 +629,18 @@ async function doctor() {
     serverPid = mainPid === undefined || mainPid === "0" ? undefined : mainPid;
   }
 
-  // A server stays on the binary it started with after an upgrade deletes it, and
-  // on macOS that binary loses ~/Documents access, so those threads fail to launch.
+  // A service from before the pinned Node stays on its package manager's binary until
+  // a deploy, and on macOS that binary loses ~/Documents access once an upgrade deletes it.
   if (serverPid !== undefined) {
     const running = executableOfProcess(serverPid);
-    const expected = settings === undefined ? undefined : nodeExecutableOn(settings.path);
+    const expected = pinnedNodePath();
     const restart = isMac
       ? `launchctl kickstart -k gui/${NodeOS.userInfo().uid}/${LAUNCHD_LABEL}`
       : "systemctl --user restart b4-code.service";
     if (running === undefined) report("warn", "server node", `can't read pid ${serverPid}`);
     else if (!NodeFS.existsSync(running)) {
       report("FAIL", "server node", `${running} no longer exists; run \`${restart}\``);
-    } else if (expected !== undefined && running !== expected) {
+    } else if (running !== expected) {
       report("FAIL", "server node", `${running}, not ${expected}; run \`${restart}\``);
     } else report("ok", "server node", running);
   }
@@ -605,7 +665,7 @@ async function doctor() {
   let stamp = "?";
   for (const line of recentServiceLog()) {
     stamp = /^\[([\d:.]+)\]/.exec(line)?.[1] ?? stamp;
-    if (!/\b(ERROR|FATAL)\b|EMFILE|EADDRINUSE/.test(line)) continue;
+    if (!/\b(ERROR|FATAL)\b|EMFILE|EADDRINUSE|EPERM/.test(line)) continue;
     recentErrors.push(line.startsWith("[") ? line.trim() : `[${stamp}] ${line.trim()}`);
   }
   if (recentErrors.length === 0) report("ok", "recent log", "no errors");
@@ -734,7 +794,7 @@ function createSigningIdentity() {
 }
 
 function pair() {
-  run(process.execPath, [serverEntry, "pair", "--base-dir", home, ...process.argv.slice(3)]);
+  run(pinnedNodePath(), [serverEntry, "pair", "--base-dir", home, ...process.argv.slice(3)]);
 }
 
 const commands: Record<string, () => void | Promise<void>> = {
