@@ -8,7 +8,7 @@
  *   node fork/b4.ts deploy    reset to origin/main, brand, build, restart; on macOS also
  *                             install the B4 Code desktop client (deploy checkout)
  *   node fork/b4.ts service   install or refresh the background service
- *   node fork/b4.ts doctor    check the service, its node, and the server (--all adds the devbox)
+ *   node fork/b4.ts doctor    check the service, its node, and the server (--all adds both devbox accounts)
  *   node fork/b4.ts pair      print a one-time pairing link for a new client
  *   node fork/b4.ts signing   create the self-signed identity that signs B4 Code (macOS)
  *
@@ -67,7 +67,7 @@ const APP_ICON_TARGETS = {
 } as const;
 
 const LAUNCHD_LABEL = "dev.b4code.server";
-const DEVBOX_SSH_HOST = "devbox";
+const DEVBOX_SSH_TARGETS = ["devbox", "synora@devbox"];
 const launchdPlistPath = NodePath.join(
   NodeOS.homedir(),
   "Library/LaunchAgents",
@@ -673,13 +673,19 @@ async function doctor() {
 
   if (process.argv.includes("--all")) {
     if (!isMac) fail("--all runs from the Mac.");
-    console.log(`\n${DEVBOX_SSH_HOST}:`);
-    const remote = NodeChildProcess.spawnSync(
-      "ssh",
-      [DEVBOX_SSH_HOST, "cd ~/.b4-code/src && node fork/b4.ts doctor"],
-      { stdio: "inherit" },
-    );
-    if (remote.status !== 0) failed = true;
+    for (const target of DEVBOX_SSH_TARGETS) {
+      console.log(`\n${target}:`);
+      const remote = NodeChildProcess.spawnSync(
+        "ssh",
+        [target, "cd ~/.b4-code/src && node fork/b4.ts doctor"],
+        { stdio: "inherit" },
+      );
+      if (remote.status === 0) report("ok", target, "doctor passed");
+      else {
+        const outcome = remote.error?.message ?? String(remote.status ?? remote.signal);
+        report("FAIL", target, `doctor exited with ${outcome}`);
+      }
+    }
   }
   if (failed) process.exitCode = 1;
 }

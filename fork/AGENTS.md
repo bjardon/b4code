@@ -31,8 +31,8 @@ This file wins where the two conflict:
 
 ## Guardrails
 
-- `~/.t3` belongs to the official app and Bruno's work setup. Never start a server against it or write to it.
-- `~/.b4-code/userdata` is the live b4-code database. Upstream's rules for `~/.t3/userdata` apply to it too: copying from it is fine, writing to it is not.
+- `~/.t3` belongs to the official app in every account. On the Mac it's Bruno's work setup. On the devbox, `oxperience` runs on it, and the copies under `bjardon` and `synora` are left from before b4-code. Never start a server against one or write to it.
+- `~/.b4-code/userdata` is the live b4-code database, and each account has its own. Upstream's rules for `~/.t3/userdata` apply to it too: copying from it is fine, writing to it is not.
 - `~/.b4-code/src` is the deploy clone. Never develop in it. `deploy` resets it hard.
 - `~/.b4-code/desktop` and `~/Library/Application Support/b4code` belong to the installed B4 Code app.
 - Never push to `upstream`.
@@ -45,9 +45,11 @@ This file wins where the two conflict:
 
 ## Machines
 
-b4-code runs on two machines. Treat both as production.
+b4-code runs on two machines, in two accounts on the devbox. Treat all three as production.
 
-- **devbox**: Linux, reached with `ssh devbox` as `bjardon`. Deploy with `ssh devbox 'cd ~/.b4-code/src && node fork/b4.ts deploy'`. The service is the systemd user unit `b4-code.service`. Never act as the `oxperience` user, which is a separate profile. Fleet installs b4-code there the first time; after that, updates come only from these deploys.
+- **devbox**: Linux. Each account has its own `~/.b4-code`, its own `service.json`, and its own systemd user unit `b4-code.service`, and both bind the same tailnet address. Never act as the `oxperience` user, which is a separate profile on official T3 Code. Fleet installs b4-code in an account the first time; after that, updates come only from these deploys.
+  - `bjardon`, port 3773: `ssh devbox 'cd ~/.b4-code/src && node fork/b4.ts deploy'`
+  - `synora`, port 3775: `ssh synora@devbox 'cd ~/.b4-code/src && node fork/b4.ts deploy'`
 - **Mac**: the server at `http://127.0.0.1:3780` (launchd agent `dev.b4code.server`, logs in `~/.b4-code/logs/service.log`) and the B4 Code client at `/Applications/B4 Code.app`. Deploy with `cd ~/.b4-code/src && node fork/b4.ts deploy`, which also rebuilds B4 Code, quitting and reopening it.
 
 ## Wrap-up
@@ -57,8 +59,8 @@ Implement and verify freely, but ship only after Bruno accepts the work. "Ship i
 1. Verify the accepted user-visible behavior in proportion to the change.
 2. Refresh `fork/TODO.md` so completed, partial, and unfinished outcomes stay accurate.
 3. Commit with a `Co-Authored-By` trailer and land it on `main`. From a worktree, rebase onto `origin/main`, run `git push origin HEAD:main`, then fast-forward the main checkout if it is clean. Opening a pull request is not a completed wrap-up.
-4. Deploy to every machine in [Machines](#machines), one at a time, and confirm each run ends with `b4: server answering on ...`. Deploy the machine hosting this session last, usually the Mac: its restart ends the session, so from it `deploy` runs in the background and logs to `~/.b4-code/logs/deploy.log`. Before that last deploy, tell Bruno the thread will drop and that the next message brings the result. Each restart also interrupts any agent turns running on that server.
-5. On the next turn, read the deploy log on the session's machine. Shipped means every machine's server runs the change.
+4. Deploy to every machine and devbox account in [Machines](#machines), one at a time, and confirm each run ends with `b4: server answering on ...`. Never run the two devbox deploys together, because each build gets a 4096 MB heap on a 7 GiB machine. Deploy the machine hosting this session last, usually the Mac: its restart ends the session, so from it `deploy` runs in the background and logs to `~/.b4-code/logs/deploy.log`. Before that last deploy, tell Bruno the thread will drop and that the next message brings the result. Each restart also interrupts any agent turns running on that server.
+5. On the next turn, read the deploy log on the session's machine. Shipped means the server in every machine and devbox account runs the change.
 6. Consider the devlog. Append only durable decisions, learnings, or dead ends, under `### YYYY-MM-DD — Title`, with a `<Agent Name> posting on behalf of Bruno` line. Don't repeat what Git history or `TODO.md` already record.
 
 If any step is blocked, report the wrap-up as incomplete and name the blocker. Don't record the work as shipped. Don't add required review, branch protection, or other quality gates unless Bruno asks for them.
