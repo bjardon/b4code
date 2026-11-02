@@ -315,6 +315,7 @@ function EnvironmentScopeMenu({
         selected ? (
           <EnvironmentMachineIcon
             aria-hidden
+            environmentId={selected.environmentId}
             kind={resolveEnvironmentMachineKind(selected.serverConfig)}
             className="size-3.5 shrink-0"
           />
@@ -353,6 +354,7 @@ function EnvironmentScopeMenu({
           icon: (
             <EnvironmentMachineIcon
               aria-hidden
+              environmentId={environment.environmentId}
               kind={resolveEnvironmentMachineKind(environment.serverConfig)}
               className="size-3.5 shrink-0"
             />

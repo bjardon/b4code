@@ -1277,6 +1277,7 @@ function ConnectionsSettingsContent({
             icon={
               <EnvironmentMachineIcon
                 aria-hidden
+                environmentId={primaryEnvironmentId}
                 kind={
                   accessServerConfig ? resolveEnvironmentMachineKind(accessServerConfig) : "desktop"
                 }

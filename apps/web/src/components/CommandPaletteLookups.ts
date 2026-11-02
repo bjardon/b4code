@@ -37,6 +37,7 @@ export function useEnvironmentLookups() {
               ? gt("{label} (Local)", { label: environment.label })
               : environment.label,
           machine: resolveEnvironmentMachineKind(environment.serverConfig),
+          environmentId: environment.environmentId,
         },
       ] as const;
     }),

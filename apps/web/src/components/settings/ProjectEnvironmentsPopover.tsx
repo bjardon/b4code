@@ -61,6 +61,7 @@ export function ProjectEnvironmentsPopover({
               <h4 className="flex items-center gap-1.5 pb-1.5 text-xs font-medium text-muted-foreground">
                 <EnvironmentMachineIcon
                   aria-hidden
+                  environmentId={section.environmentId}
                   kind={section.machine}
                   className="size-3.5 shrink-0"
                 />
