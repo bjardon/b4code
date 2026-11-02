@@ -2157,6 +2157,69 @@ describe("EnvironmentRegistry routes", () => {
       }),
   );
 
+  it.effect("renaming an environment relabels every saved route and persists them", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness(
+        [LAN_TARGET, RELAY_TARGET],
+        [LAN_PROFILE],
+        [[LAN_TARGET.connectionId, BEARER_CREDENTIAL]],
+      );
+      yield* Effect.gen(function* () {
+        const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
+        yield* registry.setLabel(LAN_TARGET.environmentId, "  devbox synora  ");
+
+        const stored = routesOf(yield* Ref.get(harness.storedTargets), LAN_TARGET.environmentId);
+        expect(stored.map((target) => target.label)).toEqual(["devbox synora", "devbox synora"]);
+        expect(stored.map((target) => target._tag)).toEqual([
+          "BearerConnectionTarget",
+          "RelayConnectionTarget",
+        ]);
+        const entry = (yield* SubscriptionRef.get(registry.entries)).get(LAN_TARGET.environmentId);
+        expect(entry?.target.label).toBe("devbox synora");
+        expect(entry?.alternateRoutes?.map((route) => route.target.label)).toEqual([
+          "devbox synora",
+        ]);
+      }).pipe(Effect.provide(harness.layer), Effect.scoped);
+    }),
+  );
+
+  it.effect("a blank label leaves the saved name alone", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness([RELAY_TARGET]);
+      yield* Effect.gen(function* () {
+        const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
+        const failure = yield* registry
+          .setLabel(RELAY_TARGET.environmentId, "   ")
+          .pipe(Effect.flip);
+
+        expect(failure).toBeInstanceOf(ConnectionBlockedError);
+        expect(routesOf(yield* Ref.get(harness.storedTargets), RELAY_TARGET.environmentId)).toEqual(
+          [RELAY_TARGET],
+        );
+      }).pipe(Effect.provide(harness.layer), Effect.scoped);
+    }),
+  );
+
+  it.effect("pairing a preferred route keeps the name the environment was given", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness([RELAY_TARGET]);
+      yield* Effect.gen(function* () {
+        const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
+        yield* registry.setLabel(RELAY_TARGET.environmentId, "devbox synora");
+        yield* registry.register(lanRegistration());
+
+        const entry = (yield* SubscriptionRef.get(registry.entries)).get(LAN_TARGET.environmentId);
+        expect(entry?.target._tag).toBe("BearerConnectionTarget");
+        expect(entry?.target.label).toBe("devbox synora");
+        expect(
+          routesOf(yield* Ref.get(harness.storedTargets), LAN_TARGET.environmentId).map(
+            (target) => target.label,
+          ),
+        ).toEqual(["devbox synora", "devbox synora"]);
+      }).pipe(Effect.provide(harness.layer), Effect.scoped);
+    }),
+  );
+
   it.effect("signing out of T3 Connect keeps an environment that still has a LAN route", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness(

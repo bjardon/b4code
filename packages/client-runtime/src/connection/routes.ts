@@ -12,7 +12,13 @@ import {
   type ConnectionCatalogEntry,
   type ConnectionRoute,
 } from "./catalog.ts";
-import { BearerConnectionTarget, type ConnectionTarget } from "./model.ts";
+import {
+  BearerConnectionTarget,
+  PrimaryConnectionTarget,
+  RelayConnectionTarget,
+  SshConnectionTarget,
+  type ConnectionTarget,
+} from "./model.ts";
 
 export type ConnectionRouteKind =
   | "relay"
@@ -138,6 +144,31 @@ export function upsertRoute(
     : // A route paired at a new address, such as localhost beside a saved
       // 127.0.0.1, goes first among its kind so its fresh credential connects.
       insertRoute(routes, route, { aheadOfSameKind: true });
+}
+
+function targetWithLabel(target: ConnectionTarget, label: string): ConnectionTarget {
+  switch (target._tag) {
+    case "PrimaryConnectionTarget":
+      return new PrimaryConnectionTarget({ ...target, label });
+    case "BearerConnectionTarget":
+      return new BearerConnectionTarget({ ...target, label });
+    case "RelayConnectionTarget":
+      return new RelayConnectionTarget({ ...target, label });
+    case "SshConnectionTarget":
+      return new SshConnectionTarget({ ...target, label });
+  }
+}
+
+/** Every route carries the label, and whichever route sorts first names the environment. */
+export function routesWithLabel(
+  routes: ReadonlyArray<ConnectionRoute>,
+  label: string,
+): ReadonlyArray<ConnectionRoute> {
+  return routes.map((route) =>
+    route.target.label === label
+      ? route
+      : { target: targetWithLabel(route.target, label), profile: route.profile },
+  );
 }
 
 export function findRouteToSameAddress(

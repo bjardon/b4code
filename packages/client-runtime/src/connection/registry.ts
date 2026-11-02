@@ -52,6 +52,7 @@ import {
   hasSavedBearerRoute,
   mergeLearnedRoutes,
   routesAfterRemoving,
+  routesWithLabel,
   upsertRoute,
   type ReportedEndpoint,
 } from "./routes.ts";
@@ -144,6 +145,16 @@ export class EnvironmentRegistry extends Context.Service<
     readonly reorderRoutes: (
       environmentId: EnvironmentId,
       routeIds: ReadonlyArray<string>,
+    ) => Effect.Effect<
+      void,
+      | Persistence.ConnectionPersistenceError
+      | EnvironmentNotRegisteredError
+      | PlatformEnvironmentRemovalError
+      | ConnectionBlockedError
+    >;
+    readonly setLabel: (
+      environmentId: EnvironmentId,
+      label: string,
     ) => Effect.Effect<
       void,
       | Persistence.ConnectionPersistenceError
@@ -584,7 +595,20 @@ export const make = Effect.gen(function* () {
               existing !== sameAddress ||
               connectionRouteId(existing.target) === connectionRouteId(route.target),
           );
-          const next = withRoutes(previous, upsertRoute(routes, route));
+          // A newly added route brings the server's own name, which must not undo a rename.
+          // Re-registering a saved route is how a caller sets the label, so that one wins.
+          const replacesSavedRoute =
+            sameAddress !== undefined ||
+            existing.some(
+              (saved) => connectionRouteId(saved.target) === connectionRouteId(route.target),
+            );
+          const next = withRoutes(
+            previous,
+            routesWithLabel(
+              upsertRoute(routes, route),
+              replacesSavedRoute ? registered.target.label : previous.target.label,
+            ),
+          );
           if (next.addressesChanged) {
             yield* forgetRoutingTrust(environmentId, "register-connection");
           }
@@ -1025,6 +1049,27 @@ export const make = Effect.gen(function* () {
     );
   });
 
+  const setLabel = Effect.fn("EnvironmentRegistry.setLabel")(function* (
+    environmentId: EnvironmentId,
+    label: string,
+  ) {
+    const trimmed = label.trim();
+    if (trimmed === "") {
+      return yield* new ConnectionBlockedError({
+        reason: "configuration",
+        detail: "Environment label cannot be empty.",
+      });
+    }
+    yield* withLeaseLock(
+      environmentId,
+      Effect.gen(function* () {
+        const entry = yield* userEntry(environmentId);
+        if (entry.target.label === trimmed) return;
+        yield* replaceRoutesLocked(entry, routesWithLabel(connectionRoutes(entry), trimmed));
+      }),
+    );
+  });
+
   const removeRelayEnvironments = Effect.fn("EnvironmentRegistry.removeRelayEnvironments")(
     function* () {
       const relayEnvironmentIds = [...(yield* SubscriptionRef.get(entries)).values()]
@@ -1193,6 +1238,7 @@ export const make = Effect.gen(function* () {
     remove,
     removeRoute,
     reorderRoutes,
+    setLabel,
     removeRelayEnvironments,
     retryNow,
     setEnabled,
