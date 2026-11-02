@@ -398,6 +398,10 @@ describe("ServerSettings.sourceControlWritingStyle", () => {
 describe("ServerSettings environment icon", () => {
   it("decodes a kind from a newer server as null instead of failing the snapshot", () => {
     expect(decodeServerSettings({ environmentIcon: "toaster" }).environmentIcon).toBeNull();
+    expect(decodeServerSettings({ environmentIconColor: "blue" }).environmentIconColor).toBe(
+      "blue",
+    );
+    expect(decodeServerSettings({ environmentIconColor: "plaid" }).environmentIconColor).toBeNull();
   });
 });
 

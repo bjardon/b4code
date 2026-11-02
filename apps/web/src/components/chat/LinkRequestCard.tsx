@@ -493,6 +493,7 @@ function MachinePicker(props: {
           >
             <Radio value={machine.environmentId} />
             <EnvironmentMachineIcon
+              environmentId={machine.environmentId}
               kind={machine.machine}
               className="size-4 shrink-0 text-muted-foreground"
             />

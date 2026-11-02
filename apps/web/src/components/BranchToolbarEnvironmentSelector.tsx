@@ -72,6 +72,7 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
         data-composer-context-control
       >
         <EnvironmentMachineIcon
+          environmentId={activeEnvironment?.environmentId}
           kind={activeEnvironment?.machine ?? "server"}
           className="size-3 shrink-0"
         />
@@ -117,6 +118,7 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
             <ScaleIcon className="size-3 shrink-0" aria-hidden="true" />
           ) : (
             <EnvironmentMachineIcon
+              environmentId={activeEnvironment?.environmentId}
               kind={activeEnvironment?.machine ?? "server"}
               className="size-3 shrink-0"
             />
@@ -153,7 +155,11 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
               disabled={onEnvironmentChange === undefined && env.environmentId !== environmentId}
             >
               <span className="inline-flex items-center gap-1.5">
-                <EnvironmentMachineIcon kind={env.machine} className="size-3" />
+                <EnvironmentMachineIcon
+                  environmentId={env.environmentId}
+                  kind={env.machine}
+                  className="size-3"
+                />
                 {env.label}
               </span>
             </SelectItem>

@@ -17,6 +17,7 @@ export interface CommandPaletteProjectLocation {
   readonly kind: "local" | "remote";
   readonly label: string;
   readonly machine: EnvironmentMachineKind;
+  readonly environmentId?: EnvironmentId;
 }
 
 const UNKNOWN_PROJECT_LOCATION: CommandPaletteProjectLocation = {
@@ -108,6 +109,7 @@ function ProjectLocationDescription(props: {
         {location.kind === "remote" ? (
           <EnvironmentMachineIcon
             aria-hidden
+            environmentId={location.environmentId}
             kind={location.machine}
             className={COMMAND_PALETTE_META_ICON_CLASS}
           />

@@ -1033,6 +1033,7 @@ export function ConnectionsSettings({ view }: { readonly view: "environments" | 
             icon={
               <EnvironmentMachineIcon
                 aria-hidden
+                environmentId={primaryEnvironmentId}
                 kind={
                   primaryServerConfig
                     ? resolveEnvironmentMachineKind(primaryServerConfig)

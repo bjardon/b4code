@@ -34,6 +34,7 @@ export function ProjectEnvironmentBadge(props: {
       >
         <EnvironmentMachineIcon
           aria-hidden
+          environmentId={first.environmentId}
           kind={props.machineByEnvironmentId.get(first.environmentId) ?? "server"}
           className="size-3.5"
         />

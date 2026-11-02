@@ -26,6 +26,7 @@ export function EnvironmentContextChip(props: {
             data-markdown-copy={props.copyMarkdown}
           >
             <EnvironmentMachineIcon
+              environmentId={props.record.environmentId}
               kind={resolveEnvironmentMachineKind(environment?.serverConfig ?? null)}
             />
             <ContextChipLabel>{label}</ContextChipLabel>

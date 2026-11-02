@@ -4,7 +4,11 @@ import {
   connectionRouteLabel,
   connectionRoutes,
 } from "@t3tools/client-runtime/connection";
-import type { DesktopSshEnvironmentTarget, EnvironmentMachineKind } from "@t3tools/contracts";
+import type {
+  DesktopSshEnvironmentTarget,
+  EnvironmentId,
+  EnvironmentMachineKind,
+} from "@t3tools/contracts";
 import * as Option from "effect/Option";
 import type { ReactNode } from "react";
 
@@ -66,6 +70,7 @@ export function EnvironmentTransportLabel(props: {
 }
 
 export function EnvironmentRow({
+  environmentId,
   kind,
   label,
   subtitle,
@@ -75,6 +80,7 @@ export function EnvironmentRow({
   className,
   children,
 }: {
+  readonly environmentId: EnvironmentId;
   readonly kind: EnvironmentMachineKind;
   readonly label: string;
   readonly subtitle: ReactNode;
@@ -94,6 +100,7 @@ export function EnvironmentRow({
       {/* Dim only identity so switched-off controls remain readable and distinct from disabled controls. */}
       <EnvironmentMachineIcon
         aria-hidden
+        environmentId={environmentId}
         kind={kind}
         className={cn("size-4 text-muted-foreground", dimmed && "opacity-60")}
       />
