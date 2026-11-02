@@ -2189,7 +2189,11 @@ const FleetScene = memo(function FleetScene({
                   dimmed && "opacity-60",
                 )}
               >
-                <EnvironmentMachineIcon kind={node.machine ?? "server"} className="size-3.5" />
+                <EnvironmentMachineIcon
+                  environmentId={node.environmentId}
+                  kind={node.machine ?? "server"}
+                  className="size-3.5"
+                />
                 <span
                   aria-hidden
                   className={cn(

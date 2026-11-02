@@ -336,6 +336,7 @@ function SidebarThreadTooltip({
         {environmentLabel ? (
           <div className="flex min-w-0 items-center gap-2">
             <EnvironmentMachineIcon
+              environmentId={thread.environmentId}
               kind={environmentMachine}
               className="size-3 shrink-0 stroke-muted-foreground"
             />
@@ -1289,6 +1290,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         <>
           <EnvironmentMachineIcon
             aria-hidden
+            environmentId={thread.environmentId}
             kind={props.environmentMachine}
             className="size-3.5 shrink-0 text-icon-muted"
           />

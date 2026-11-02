@@ -94,6 +94,7 @@ export function LoadBalancingSettings({
       {environments.map((environment) => (
         <EnvironmentRow
           key={environment.environmentId}
+          environmentId={environment.environmentId}
           kind={resolveEnvironmentMachineKind(environment.serverConfig)}
           label={environment.label}
           subtitle={<EnvironmentTransportLabel environment={environment} />}

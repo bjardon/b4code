@@ -269,6 +269,7 @@ export function SavedBackendListRow({
 
   return (
     <EnvironmentRow
+      environmentId={environmentId}
       kind={machineKind}
       label={environment.label}
       dimmed={!enabled}

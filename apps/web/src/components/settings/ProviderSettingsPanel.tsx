@@ -306,7 +306,10 @@ function EnvironmentUnavailablePlaceholder({
     <ProviderSettingsPlaceholder
       deviceTabs={deviceTabs}
       icon={
-        <EnvironmentMachineIcon kind={resolveEnvironmentMachineKind(environment.serverConfig)} />
+        <EnvironmentMachineIcon
+          environmentId={environment.environmentId}
+          kind={resolveEnvironmentMachineKind(environment.serverConfig)}
+        />
       }
       title={title}
       description={description}
@@ -421,6 +424,7 @@ function ProviderSettingsPanelContent(target: ProviderSettingsTarget) {
                 render={
                   <Toggle value={environment.environmentId}>
                     <EnvironmentMachineIcon
+                      environmentId={environment.environmentId}
                       kind={machine}
                       className="size-3.5 shrink-0"
                       aria-hidden

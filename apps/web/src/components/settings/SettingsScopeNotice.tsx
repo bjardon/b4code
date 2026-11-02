@@ -54,6 +54,7 @@ export function SettingsScopeNotice({
     environment ? (
       <EnvironmentMachineIcon
         aria-hidden
+        environmentId={environment.environmentId}
         kind={resolveEnvironmentMachineKind(environment.serverConfig)}
         className="size-4 shrink-0 text-muted-foreground"
       />

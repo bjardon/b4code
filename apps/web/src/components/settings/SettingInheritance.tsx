@@ -355,6 +355,7 @@ export function SettingInheritance({
                   <h4 className="flex items-center gap-1.5 pb-1.5 text-xs font-medium text-muted-foreground">
                     <EnvironmentMachineIcon
                       aria-hidden
+                      environmentId={target.environmentId}
                       kind={machine}
                       className="size-3.5 shrink-0"
                     />
@@ -395,6 +396,7 @@ export function SettingInheritance({
                             >
                               <EnvironmentMachineIcon
                                 aria-hidden
+                                environmentId={member.target.environmentId}
                                 kind={member.machine}
                                 className="size-3 shrink-0"
                               />

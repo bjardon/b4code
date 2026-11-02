@@ -1002,6 +1002,7 @@ export function ThreadRowTrailingStatus({ thread }: { thread: SidebarThreadSumma
           label={threadEnvironmentLabel}
         >
           <EnvironmentMachineIcon
+            environmentId={thread.environmentId}
             kind={remoteMachine}
             className="size-3 text-muted-foreground/60"
           />

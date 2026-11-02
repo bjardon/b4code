@@ -3,6 +3,7 @@ import {
   resolveEnvironmentMachineKind,
   type EnvironmentMachineKind,
   type EnvironmentId,
+  type ProjectIconColor,
   type ServerConfig,
   type ServerProvider,
 } from "@t3tools/contracts";
@@ -328,6 +329,17 @@ export function createEnvironmentSummaryAtoms(input: {
     );
     return previous !== null && mapsEqual(previous, next) ? previous : next;
   });
+  const iconColorByIdAtom = Atom.make((get) => {
+    const next = new Map(
+      get(environmentIdsAtom).flatMap((environmentId) => {
+        const color = get(input.presentationAtom(environmentId))?.serverConfig?.settings
+          .environmentIconColor;
+        return color ? [[environmentId, color] as const] : [];
+      }),
+    );
+    const previous = Option.getOrNull(get.self<ReadonlyMap<EnvironmentId, ProjectIconColor>>());
+    return previous !== null && mapsEqual(previous, next) ? previous : next;
+  });
   const pullRequestsSupportedAtom = Atom.make((get) =>
     get(environmentIdsAtom).some(
       (environmentId) =>
@@ -347,6 +359,7 @@ export function createEnvironmentSummaryAtoms(input: {
     identitiesAtom,
     environmentsAtom,
     machineByIdAtom,
+    iconColorByIdAtom,
     pullRequestsSupportedAtom,
     issuesSupportedAtom,
   };

@@ -725,6 +725,7 @@ function NodeDetails({
       {saved ??
         (environment ? (
           <EnvironmentRow
+            environmentId={environment.environmentId}
             kind={resolveEnvironmentMachineKind(environment.serverConfig)}
             label={environment.label}
             subtitle={
