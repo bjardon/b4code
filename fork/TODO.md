@@ -9,4 +9,4 @@
 - [x] The server runs on its own Node at upstream's pinned version, so Homebrew upgrades can't break threads in `~/Documents`
 - [ ] b4-code is the daily driver for freelance and experiment work, and the first customizations come from that use
 - [x] b4-code replaces `t3@latest` in the devbox `bjardon` account (port 3773, tailnet), with the Fleet profile updated to match
-- [ ] b4-code replaces `t3@latest` in the devbox `synora` account (port 3775, tailnet), with the Fleet profile updated to match
+- [x] b4-code replaces `t3@latest` in the devbox `synora` account (port 3775, tailnet), with the Fleet profile updated to match
