@@ -1,21 +1,8 @@
 #!/usr/bin/env node
 // @effect-diagnostics nodeBuiltinImport:off globalConsole:off globalFetch:off globalDate:off - runs before `vp i`, so only Node built-ins exist.
 /**
- * Builds and runs b4-code, Bruno's fork of T3 Code, from a dedicated checkout.
- * See fork/README.md for the layout and the first-time setup.
- *
- *   node fork/b4.ts sync      rebase main onto upstream/main and push it (dev checkout)
- *   node fork/b4.ts deploy    reset to origin/main, brand, build, restart; on macOS also
- *                             install the B4 Code desktop client (deploy checkout)
- *   node fork/b4.ts service   install or refresh the background service
- *   node fork/b4.ts doctor    check the service, its node, and the server (--all adds both devbox accounts)
- *   node fork/b4.ts pair      print a one-time pairing link for a new client
- *   node fork/b4.ts signing   create the self-signed identity that signs B4 Code (macOS)
- *
- * B4_HOME (default ~/.b4-code), B4_PORT (3780), and B4_HOST (127.0.0.1) pick the
- * data directory and bind address. `service` saves the address and PATH in
- * B4_HOME/service.json, and later `service` and `deploy` runs reuse them. The
- * server runs on its own Node in B4_HOME/node, at the version package.json pins.
+ * Builds and runs b4-code from a dedicated checkout: sync, deploy, service,
+ * doctor, pair, signing. fork/README.md covers each command and B4_* variable.
  */
 import * as NodeChildProcess from "node:child_process";
 import * as NodeCrypto from "node:crypto";
@@ -34,10 +21,9 @@ const deployCheckout = NodePath.join(home, "src");
 const serverEntry = NodePath.join(repoRoot, "apps/server/dist/bin.mjs");
 const pinnedNodesDir = NodePath.join(home, "node");
 
-// A standalone script with no Effect runtime to inject the host platform.
-// oxlint-disable-next-line t3code/no-global-process-runtime
+// oxlint-disable-next-line t3code/no-global-process-runtime -- a standalone script has no Effect runtime to inject the host platform.
 const isMac = NodeOS.platform() === "darwin";
-// oxlint-disable-next-line t3code/no-global-process-runtime
+// oxlint-disable-next-line t3code/no-global-process-runtime -- same as above.
 const hostArch = NodeOS.arch() === "arm64" ? "arm64" : "x64";
 
 const DESKTOP_APP_NAME = "B4 Code";
@@ -115,7 +101,7 @@ function requireCleanMain() {
 
 function sync() {
   requireCleanMain();
-  run("git", ["fetch", "upstream", "origin"]);
+  run("git", ["fetch", "--multiple", "upstream", "origin"]);
   run("git", ["rebase", "upstream/main"]);
   run("git", ["push", "--force-with-lease=main:origin/main", "origin", "main"]);
 }
