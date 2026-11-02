@@ -1,14 +1,9 @@
 #!/usr/bin/env node
 // @effect-diagnostics nodeBuiltinImport:off globalConsole:off - a maintainer tool with only Node built-ins.
 /**
- * Renders an icon SVG in fork/icons into the PNG and ICO files that `deploy`
- * copies over upstream's brand assets. Needs Google Chrome and ImageMagick (macOS).
- *
- *   node fork/icons/render.ts sticker
- *
- * Each SVG's viewBox is the full-bleed icon body. The macOS export adds the
- * classic safe area (824 body inset 100 on a 1024 canvas) and a drop shadow,
- * like upstream's Icon Composer exports.
+ * Renders a fork/icons SVG (`node fork/icons/render.ts sticker`) into the PNG and
+ * ICO files `deploy` copies over upstream's brand assets. Needs Chrome and ImageMagick.
+ * The macOS export adds the 824-in-1024 safe area and a drop shadow, like Icon Composer.
  */
 import * as NodeChildProcess from "node:child_process";
 import * as NodeFS from "node:fs";
