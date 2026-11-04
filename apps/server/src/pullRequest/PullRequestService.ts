@@ -94,6 +94,7 @@ import {
   PullRequestProviderError,
 } from "@t3tools/source-control-core/server/PullRequestProvider";
 import * as PullRequestReadCache from "./PullRequestReadCache.ts";
+import { preferOriginRepository } from "./forkOriginRepository.ts";
 import * as PullRequestProviderRegistry from "./PullRequestProviderRegistry.ts";
 import * as ViewedFiles from "./pullRequestViewedFiles.ts";
 import { toChangeBreakdown } from "./pullRequestChangeBreakdown.ts";
@@ -894,6 +895,7 @@ export const make = Effect.gen(function* () {
           { concurrency: REPOSITORY_CONCURRENCY },
         ),
       ),
+      Effect.map((projects) => projects.map(preferOriginRepository)),
       Effect.flatMap((projects) =>
         resolveRemoteHosts(projects, filter).pipe(
           Effect.map((remoteHosts) => ({ remoteHosts, projects })),

@@ -4589,3 +4589,51 @@ it.effect.each(["expiry", "commit expiry", "cache hit", "commit cache hit", "ref
       assert.strictEqual(diffReads, 2);
     }),
 );
+
+it.effect("lists a fork checkout's own pull requests rather than its upstream's", () =>
+  Effect.gen(function* () {
+    const upstream = project({
+      id: "p1",
+      title: "b4code",
+      workspaceRoot: "/a",
+      repository: "pingdotgg/t3code",
+    });
+    const repositories: string[] = [];
+    const service = yield* makeService({
+      projects: [
+        {
+          ...upstream,
+          ...(upstream.repositoryIdentity
+            ? {
+                repositoryIdentity: {
+                  ...upstream.repositoryIdentity,
+                  origin: {
+                    canonicalKey: "github.com/bjardon/b4code",
+                    remoteUrl: "git@github.com:bjardon/b4code.git",
+                    displayName: "bjardon/b4code",
+                  },
+                },
+              }
+            : {}),
+        },
+      ],
+      providers: [
+        fakePullRequestProvider(SourceControlProviderKind.make("github"), {
+          listChangeRequests: ({ repository }) => {
+            repositories.push(repository);
+            return Effect.succeed({
+              items: [changeRequest(1, "2026-07-02T00:00:00Z")],
+              truncated: false,
+              continues: false,
+            });
+          },
+        }),
+      ],
+    });
+
+    const result = yield* service.list({ state: "open" });
+
+    assert.deepStrictEqual(repositories, ["bjardon/b4code"]);
+    assert.strictEqual(result.entries[0]?.repository, "bjardon/b4code");
+  }),
+);
