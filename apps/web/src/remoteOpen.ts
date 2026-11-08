@@ -53,6 +53,7 @@ function parseHostname(url: string): string | null {
 export function resolveRemoteOpenState(input: {
   readonly target: ConnectionTarget | null;
   readonly sshTarget: { readonly alias: string; readonly username: string | null } | null;
+  readonly bearerHttpBaseUrl?: string | null;
   readonly remoteOpenTargets: ReadonlyArray<RemoteOpenTarget> | undefined;
   readonly isDesktopRenderer: boolean;
   readonly hostEnvironmentId: string | null;
@@ -72,6 +73,12 @@ export function resolveRemoteOpenState(input: {
     }
   } else if (isDesktopLocalConnectionTarget(target)) {
     return LOCAL_EXEC;
+  } else if (input.bearerHttpBaseUrl != null) {
+    // A saved server reached over loopback runs on this machine, so it can launch the editor itself.
+    const hostname = parseHostname(input.bearerHttpBaseUrl);
+    if (hostname !== null && isLoopbackHostname(hostname)) {
+      return LOCAL_EXEC;
+    }
   }
 
   if (input.sshTarget !== null && input.sshTarget.alias.length > 0) {
@@ -121,6 +128,10 @@ const remoteOpenResolutionAtom = Atom.family((environmentId: EnvironmentId) =>
         target: entry.target,
         sshTarget:
           profile !== null && profile._tag === "SshConnectionProfile" ? profile.target : null,
+        bearerHttpBaseUrl:
+          profile !== null && profile._tag === "BearerConnectionProfile"
+            ? profile.httpBaseUrl
+            : null,
         remoteOpenTargets: presentation?.serverConfig?.remoteOpenTargets,
         isDesktopRenderer: window.desktopBridge !== undefined,
         hostEnvironmentId: get(hostEnvironmentIdAtom),

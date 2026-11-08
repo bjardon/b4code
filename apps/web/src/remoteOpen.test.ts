@@ -1,4 +1,5 @@
 import {
+  BearerConnectionTarget,
   PrimaryConnectionTarget,
   RelayConnectionTarget,
   SshConnectionTarget,
@@ -34,6 +35,24 @@ describe("resolveRemoteOpenState", () => {
         hostEnvironmentId: null,
       }),
     ).toEqual({ mode: "local-exec" });
+  });
+
+  it.each([
+    ["http://127.0.0.1:3780", { mode: "local-exec" }],
+    [
+      "https://sol.tail1234.ts.net",
+      { mode: "remote-links", host: { kind: "tailscale", host: "sol.tail1234.ts.net" } },
+    ],
+  ] as const)("opens a saved server at %s with the matching mode", (httpBaseUrl, expected) => {
+    expect(
+      resolveRemoteOpenState({
+        target: new BearerConnectionTarget({ environmentId, label: "sol", connectionId: "b-1" }),
+        sshTarget: null,
+        bearerHttpBaseUrl: httpBaseUrl,
+        isDesktopRenderer: true,
+        remoteOpenTargets: TAILSCALE_TARGETS,
+      }),
+    ).toEqual(expected);
   });
 
   it("uses deep links for a primary target reached over the network", () => {
