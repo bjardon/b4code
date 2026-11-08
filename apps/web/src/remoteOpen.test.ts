@@ -52,6 +52,41 @@ describe("resolveRemoteOpenState", () => {
     ).toEqual({ mode: "local-exec" });
   });
 
+  it.each([
+    ["http://127.0.0.1:3780", { mode: "local-exec" }],
+    [
+      "https://sol.tail1234.ts.net",
+      { mode: "remote-links", host: { kind: "tailscale", host: "sol.tail1234.ts.net" } },
+    ],
+  ] as const)("opens a saved server at %s with the matching mode", (httpBaseUrl, expected) => {
+    expect(
+      resolveRemoteOpenState({
+        target: new BearerConnectionTarget({ environmentId, label: "sol", connectionId: "b-1" }),
+        routes: [
+          {
+            target: new BearerConnectionTarget({
+              environmentId,
+              label: "sol",
+              connectionId: "b-1",
+            }),
+            profile: Option.some(
+              new BearerConnectionProfile({
+                connectionId: "b-1",
+                environmentId,
+                label: "sol",
+                httpBaseUrl,
+                wsBaseUrl: httpBaseUrl.replace("http", "ws"),
+              }),
+            ),
+          },
+        ],
+        isDesktopRenderer: true,
+        remoteOpenTargets: TAILSCALE_TARGETS,
+        hostEnvironmentId: null,
+      }),
+    ).toEqual(expected);
+  });
+
   it("uses deep links for a primary target reached over the network", () => {
     expect(
       resolveRemoteOpenState({

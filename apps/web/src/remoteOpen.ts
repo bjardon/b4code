@@ -87,6 +87,14 @@ export function resolveRemoteOpenState(input: {
     }
   } else if (isDesktopLocalConnectionTarget(target)) {
     return LOCAL_EXEC;
+  } else {
+    // A saved server reached over loopback runs on this machine, so it can launch the editor itself.
+    const profile = input.routes[0] ? Option.getOrNull(input.routes[0].profile) : null;
+    const hostname =
+      profile?._tag === "BearerConnectionProfile" ? parseHostname(profile.httpBaseUrl) : null;
+    if (hostname !== null && isLoopbackHostname(hostname)) {
+      return LOCAL_EXEC;
+    }
   }
 
   const sshTarget = firstSshTarget(input.routes);

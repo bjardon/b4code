@@ -9,6 +9,7 @@
 - [x] Settings can rename a saved environment from its row's menu, per device, in B4 Code and the browser
 - [x] An environment's icon can take a color, saved on its server, and B4 Code and the browser show it wherever that environment's icon appears
 - [x] The Pull requests view lists a fork checkout's own pull requests (its `origin`), not its upstream's
+- [x] Open in VS Code on a project from the Mac's own server (saved at `127.0.0.1`) opens it locally instead of over SSH
 - [x] The server runs on its own Node at upstream's pinned version, so Homebrew upgrades can't break threads in `~/Documents`
 - [ ] b4-code is the daily driver for freelance and experiment work, and the first customizations come from that use
 - [x] b4-code replaces `t3@latest` in the devbox `bjardon` account (port 3773, tailnet), with the Fleet profile updated to match
