@@ -269,7 +269,6 @@ import { useEnvironmentQueryRefresh } from "../state/query";
 import { revisionedQuery } from "../state/revisionedQuery";
 import { useEnvironmentScope } from "~/state/session";
 import { primaryServerKeybindingsAtom, serverEnvironment } from "../state/server";
-import { hostEnvironmentIdAtom } from "../state/primaryEnvironment";
 import { threadEnvironment } from "../state/threads";
 import {
   resolveProviderSkillsForCwd,
@@ -320,8 +319,6 @@ import { ChatHeader } from "./chat/ChatHeader";
 import { useSideChat } from "./chat/useSideChat";
 import { sideThreadComposer, sideThreadKindOf } from "@t3tools/client-runtime/side-thread";
 import { useOpenSurfaceInMainView } from "../hooks/useOpenSurfaceInMainView";
-import { useRemoteOpenState } from "~/remoteOpen";
-import { shouldShowOpenInPicker } from "./chat/OpenInPicker.logic";
 import { useOpenFavoriteEditorShortcut } from "./chat/OpenInPickerShortcut";
 import {
   PanelLayoutControls,
@@ -1804,15 +1801,7 @@ export default function ChatView(props: ChatViewProps) {
   const openInEnvironmentId = activeThread?.environmentId ?? environmentId;
   const availableEditors =
     useAtomValue(serverEnvironment.configValueAtom(openInEnvironmentId))?.availableEditors ?? [];
-  const hostEnvironmentId = useAtomValue(hostEnvironmentIdAtom);
-  const remoteOpenState = useRemoteOpenState(openInEnvironmentId);
-  const showOpenInPicker = shouldShowOpenInPicker({
-    activeProjectName: activeProject?.title,
-    activeThreadEnvironmentId: openInEnvironmentId,
-    primaryEnvironmentId: primaryEnvironment?.environmentId ?? null,
-    hostEnvironmentId,
-    remoteOpenMode: remoteOpenState.mode,
-  });
+  const showOpenInPicker = Boolean(activeProject?.title);
   useOpenFavoriteEditorShortcut({
     enabled: showOpenInPicker && !backgroundThread,
     environmentId: openInEnvironmentId,
