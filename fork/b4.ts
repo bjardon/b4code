@@ -53,7 +53,13 @@ const APP_ICON_TARGETS = {
 } as const;
 
 const LAUNCHD_LABEL = "dev.b4code.server";
-const DEVBOX_SSH_TARGETS = ["devbox", "synora@devbox"];
+// boatbox is a boat.dev sandbox that runs only while Bruno works, and SSH fails while it's stopped.
+const LINUX_SSH_TARGETS: ReadonlyArray<{ target: string; boatSandbox?: string }> = [
+  { target: "devbox" },
+  { target: "synora@devbox" },
+  { target: "synora@boatbox", boatSandbox: "boatbox" },
+];
+const BOAT_UP_STATES = new Set(["ready", "idle", "running"]);
 const launchdPlistPath = NodePath.join(
   NodeOS.homedir(),
   "Library/LaunchAgents",
@@ -659,8 +665,23 @@ async function doctor() {
 
   if (process.argv.includes("--all")) {
     if (!isMac) fail("--all runs from the Mac.");
-    for (const target of DEVBOX_SSH_TARGETS) {
+    for (const { target, boatSandbox } of LINUX_SSH_TARGETS) {
       console.log(`\n${target}:`);
+      if (boatSandbox !== undefined) {
+        const state = boatSandboxState(boatSandbox);
+        if (state === undefined || state === "error") {
+          report(
+            "FAIL",
+            target,
+            `boat sandbox ${boatSandbox} is ${state ?? "missing from `boat list`"}`,
+          );
+          continue;
+        }
+        if (!BOAT_UP_STATES.has(state)) {
+          report("warn", target, `${state}, not checked`);
+          continue;
+        }
+      }
       const remote = NodeChildProcess.spawnSync(
         "ssh",
         [target, "cd ~/.b4-code/src && node fork/b4.ts doctor"],
@@ -691,6 +712,27 @@ function recentServiceLog(): ReadonlyArray<string> {
   } catch {
     return [];
   }
+}
+
+function boatSandboxState(name: string): string | undefined {
+  const listing = NodeChildProcess.spawnSync("boat", ["list", "--all", "--json", "--no-update"], {
+    encoding: "utf8",
+  });
+  if (listing.status !== 0) return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(listing.stdout);
+  } catch {
+    return undefined;
+  }
+  if (typeof parsed !== "object" || parsed === null || !("sandboxes" in parsed)) return undefined;
+  if (!Array.isArray(parsed.sandboxes)) return undefined;
+  for (const sandbox of parsed.sandboxes) {
+    if (typeof sandbox !== "object" || sandbox === null) continue;
+    if (!("name" in sandbox) || sandbox.name !== name) continue;
+    return "state" in sandbox && typeof sandbox.state === "string" ? sandbox.state : undefined;
+  }
+  return undefined;
 }
 
 function deployedBuild(): { node: string; commit: string } | undefined {

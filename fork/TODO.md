@@ -14,3 +14,4 @@
 - [ ] b4-code is the daily driver for freelance and experiment work, and the first customizations come from that use
 - [x] b4-code replaces `t3@latest` in the devbox `bjardon` account (port 3773, tailnet), with the Fleet profile updated to match
 - [x] b4-code replaces `t3@latest` in the devbox `synora` account (port 3775, tailnet), with the Fleet profile updated to match
+- [x] Deploys and `doctor --all` cover boatbox's `synora` server (port 3775, tailnet), resuming the sandbox for a deploy when it's stopped
