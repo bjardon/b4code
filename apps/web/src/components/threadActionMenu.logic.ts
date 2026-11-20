@@ -30,7 +30,9 @@ export type ThreadActionMenuId =
   | "copy-thread"
   | "copy-thread-id"
   | "archive"
-  | "delete";
+  | "delete"
+  // b4-code: move to a boat sandbox, see lib/boatSandboxActions.ts.
+  | `boat-move:${string}`;
 
 export type DraftActionMenuId =
   | "copy"

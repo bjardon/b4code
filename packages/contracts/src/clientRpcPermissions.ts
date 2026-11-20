@@ -14,6 +14,7 @@ import {
   mcpClientScopes,
 } from "./auth.ts";
 import { PeerLinkLinkPairingInput } from "./peerLink.ts";
+import { BOAT_SANDBOX_WS_METHODS } from "./boatSandbox.ts";
 import { ORCHESTRATION_V2_WS_METHODS } from "./orchestrationV2.ts";
 import { WS_METHODS } from "./rpc.ts";
 
@@ -105,6 +106,11 @@ export const CLIENT_GUARDED_RPC_SCOPES = {
   [WS_METHODS.peerLinksPairLink]: AuthAccessWriteScope,
   // Send stores and sends a report from a thread's turn: the bar of running that thread.
   [WS_METHODS.agentFeedbackAnswerRequest]: AuthOrchestrationOperateScope,
+  // Powering a sandbox stops or starts every process on that machine, as an update does.
+  [BOAT_SANDBOX_WS_METHODS.wake]: AuthEnvironmentMaintainScope,
+  [BOAT_SANDBOX_WS_METHODS.stop]: AuthEnvironmentMaintainScope,
+  [BOAT_SANDBOX_WS_METHODS.moveThread]: AuthOrchestrationOperateScope,
+  [BOAT_SANDBOX_WS_METHODS.setupProject]: AuthOrchestrationOperateScope,
 } as const;
 export type ClientGuardedRpcTag = keyof typeof CLIENT_GUARDED_RPC_SCOPES;
 

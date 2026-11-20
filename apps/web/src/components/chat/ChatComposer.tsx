@@ -2373,7 +2373,11 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       });
       return false;
     }
-    if (submissionBlocked || !readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)) {
+    // b4-code: `canOperateThread` also admits a switched-off sandbox, whose send wakes it.
+    if (
+      submissionBlocked ||
+      !(canOperateThread || readEnvironmentScope(environmentId, AuthOrchestrationOperateScope))
+    ) {
       event?.preventDefault();
       return false;
     }

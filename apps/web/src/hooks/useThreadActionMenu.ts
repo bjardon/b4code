@@ -49,6 +49,11 @@ import {
 } from "@t3tools/client-runtime/state/project-grouping";
 import { buildPhysicalToLogicalProjectKeyMap } from "../sidebarProjectGrouping";
 import { threadRuntimeCanArchive } from "@t3tools/client-runtime/state/models";
+import {
+  type BoatMoveMenuId,
+  boatMoveMenuItems,
+  runBoatMoveAction,
+} from "../lib/boatSandboxActions";
 import { useCopyToClipboard } from "./useCopyToClipboard";
 import { useNewThreadHandler } from "./useHandleNewThread";
 import { useClientSettings } from "./useSettings";
@@ -383,8 +388,22 @@ export function useThreadActionMenu(input: {
         );
         return;
       }
-      const clicked = await settlePromise(() => api.contextMenu.show(menu.items, position, source));
+      const clicked = await settlePromise(() =>
+        api.contextMenu.show<ThreadActionMenuId | BoatMoveMenuId>(
+          [...menu.items, ...boatMoveMenuItems(threadRef.environmentId)],
+          position,
+          source,
+        ),
+      );
       if (clicked._tag === "Failure" || clicked.value === null) return;
+      if (
+        runBoatMoveAction(
+          clicked.value,
+          threadRef,
+          (params) => void router.navigate({ to: "/$environmentId/$threadId", params }),
+        )
+      )
+        return;
       await menu.run(clicked.value);
     })();
   };

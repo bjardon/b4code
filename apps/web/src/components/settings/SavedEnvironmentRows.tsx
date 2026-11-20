@@ -31,6 +31,7 @@ import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 import { cn } from "../../lib/utils";
 import { SettingsRow } from "./settingsLayout";
 import { useSearchableSetting } from "./settingsSearch";
+import { BoatSandboxPowerControl } from "./BoatSandboxPower";
 import { EnvironmentIconMenu } from "./EnvironmentIconPicker";
 import { EnvironmentRenameDialog } from "./EnvironmentRenameDialog";
 import { EnvironmentRoutesList } from "./EnvironmentRoutesList";
@@ -416,6 +417,7 @@ export function SavedBackendListRow({
           appearance="icon"
         />
       ) : null}
+      <BoatSandboxPowerControl environmentId={environmentId} />
       <SharedTooltipTrigger
         render={
           <Switch

@@ -1,4 +1,9 @@
-import { ORCHESTRATION_V2_WS_METHODS, WS_METHODS, type WsRpcGroup } from "@t3tools/contracts";
+import {
+  BOAT_SANDBOX_WS_METHODS,
+  ORCHESTRATION_V2_WS_METHODS,
+  WS_METHODS,
+  type WsRpcGroup,
+} from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -77,6 +82,11 @@ const RPC_AGGREGATES = {
   [WS_METHODS.peerLinksThreadItem]: "peerLinks",
   [WS_METHODS.peerLinksPairClient]: "peerLinks",
   [WS_METHODS.peerLinksPairLink]: "peerLinks",
+  [BOAT_SANDBOX_WS_METHODS.list]: "boatSandboxes",
+  [BOAT_SANDBOX_WS_METHODS.wake]: "boatSandboxes",
+  [BOAT_SANDBOX_WS_METHODS.stop]: "boatSandboxes",
+  [BOAT_SANDBOX_WS_METHODS.moveThread]: "boatSandboxes",
+  [BOAT_SANDBOX_WS_METHODS.setupProject]: "boatSandboxes",
   [WS_METHODS.serverGetSettings]: "server",
   [WS_METHODS.serverUpdateSettings]: "server",
   [WS_METHODS.serverSearchAcpRegistry]: "server",

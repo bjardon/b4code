@@ -1,3 +1,4 @@
+import { wakeSandboxThenSend } from "./boatSandboxComposer";
 import { msg } from "gt-react";
 import { thrownErrorMessage } from "@t3tools/client-runtime/errors";
 import { m } from "~/i18n/messages";
@@ -1804,6 +1805,15 @@ export function useComposerSend(input: ComposerSendInput) {
   const sendWithEnvironmentRefreshLatest = useStableCallback(sendWithEnvironmentRefresh);
   const onSendWithRouting = async (...args: Parameters<typeof onSend>) => {
     args[0]?.preventDefault();
+    // b4-code: a switched-off sandbox wakes, then this send runs again once it reconnects.
+    if (
+      activeEnvironmentUnavailable &&
+      wakeSandboxThenSend(
+        environmentId,
+        () => void onSendLatest(undefined, args[1], args[2], args[3]),
+      )
+    )
+      return;
     const workspaceDefault =
       draftId && !sendInFlightRef.current ? readPendingWorkspaceDefault(draftId) : null;
     if (workspaceDefault === null) return sendWithEnvironmentRefresh(...args);
