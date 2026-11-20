@@ -45,11 +45,15 @@ This file wins where the two conflict:
 
 ## Machines
 
-b4-code runs on two machines, in two accounts on the devbox. Treat all three as production.
+b4-code runs on three machines, in two accounts on the devbox. Treat all four servers as production.
 
 - **devbox**: Linux. Each account has its own `~/.b4-code`, its own `service.json`, and its own systemd user unit `b4-code.service`, and both bind the same tailnet address. Never act as the `oxperience` user, which is a separate profile on official T3 Code. Fleet installs b4-code in an account the first time; after that, updates come only from these deploys.
   - `bjardon`, port 3773: `ssh devbox 'cd ~/.b4-code/src && node fork/b4.ts deploy'`
   - `synora`, port 3775: `ssh synora@devbox 'cd ~/.b4-code/src && node fork/b4.ts deploy'`
+- **boatbox**: Linux, a boat.dev sandbox (Fleet's `machines/boatbox.md`). Its `synora` account runs the server on port 3775, deployed with `ssh synora@boatbox 'cd ~/.b4-code/src && node fork/b4.ts deploy'`. It runs only while Bruno works and stops itself at a deadline, and SSH fails while it's stopped. Read its state with `boat list --all --json | jq -r '.sandboxes[] | select(.name == "boatbox") | "\(.id) \(.state)"'`.
+  - `ready`, `idle`, or `running`: it's up. Deploy and leave it running.
+  - `stopped`: run `boat resume <id>`, retry SSH until it answers (a few seconds after the resume returns), deploy, then `boat stop <id>`. Don't pass `--ttl`, which replaces the lifetime it keeps for later resumes.
+  - If it stops during a deploy, resume it and deploy again.
 - **Mac**: the server at `http://127.0.0.1:3780` (launchd agent `dev.b4code.server`, logs in `~/.b4-code/logs/service.log`) and the B4 Code client at `/Applications/B4 Code.app`. Deploy with `cd ~/.b4-code/src && node fork/b4.ts deploy`, which also rebuilds B4 Code, quitting and reopening it.
 
 ## Wrap-up
