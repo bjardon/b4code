@@ -26,6 +26,7 @@ import { assertNotLinked } from "../mcp/linkOrigin.ts";
 import * as McpInvocationContext from "../mcp/McpInvocationContext.ts";
 import { readCaller, unavailable } from "../mcp/threadAccess.ts";
 import * as ThreadManagement from "../orchestration-v2/ThreadManagementService.ts";
+import * as BoatSandboxes from "../boat/BoatSandboxes.ts";
 import * as PeerLinks from "./PeerLinks.ts";
 import * as PeerMcpClient from "./PeerMcpClient.ts";
 
@@ -98,6 +99,8 @@ export const remoteTarget = (scope: Scope, environmentId: EnvironmentId | undefi
 const make = Effect.gen(function* () {
   const peers = yield* PeerMcpClient.PeerMcpClient;
   const links = yield* PeerLinks.PeerLinks;
+  // b4-code: an agent's call to a stopped boat sandbox wakes it. Follow-ups below never do.
+  const boat = yield* Effect.serviceOption(BoatSandboxes.BoatSandboxes);
   const crypto = yield* Digest.Digest;
   const threads = yield* ThreadManagement.ThreadManagementService;
 
@@ -248,7 +251,19 @@ const make = Effect.gen(function* () {
           params as OrchestratorMcpThreadWaitInput,
         ) as Effect.Effect<Tool.Success<typeof tool>, OrchestratorMcpFailure>)
       : forward(scope, tool.name, tool.parametersSchema, tool.successSchema, environmentId, params);
-    return Effect.andThen(requireEnabled, forwarded);
+    const awake = Option.match(boat, {
+      onNone: () => Effect.void,
+      onSome: (sandboxes) =>
+        sandboxes
+          .ensureAwake(environmentId)
+          .pipe(
+            Effect.mapError(
+              (error) =>
+                new OrchestratorMcpFailure({ code: "orchestration_error", message: error.message }),
+            ),
+          ),
+    });
+    return requireEnabled.pipe(Effect.andThen(awake), Effect.andThen(forwarded));
   };
 
   /**

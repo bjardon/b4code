@@ -1,3 +1,4 @@
+import { usePoweredSandbox } from "../state/boatSandboxes";
 import { m } from "../i18n/messages";
 import { thrownErrorMessage } from "@t3tools/client-runtime/errors";
 import { useGT, useMessages } from "gt-react";
@@ -1239,6 +1240,9 @@ export default function ChatView(props: ChatViewProps) {
       connection: activeEnvironment.connection,
     };
   })() as EnvironmentUnavailableState | null;
+  // b4-code: a switched-off sandbox still takes sends, which wake it (useComposerSend).
+  const activeEnvironmentWakeable =
+    usePoweredSandbox(activeEnvironmentUnavailableState?.environmentId ?? null) !== null;
   const activeProjectIsScratch =
     activeProject !== null &&
     isScratchProject(
@@ -3688,7 +3692,7 @@ export default function ChatView(props: ChatViewProps) {
                             ) : null}
                             {!composerMounted ? null : (
                               <ChatComposer
-                                canOperateThread={canOperateThread}
+                                canOperateThread={canOperateThread || activeEnvironmentWakeable}
                                 reportedModelSelection={reportedModelSelection}
                                 multipleModelSelections={multipleModelSelections}
                                 supportsMultipleModels={
@@ -3729,7 +3733,8 @@ export default function ChatView(props: ChatViewProps) {
                                 canResume={canResume}
                                 isRevertingCheckpoint={isRevertingCheckpoint}
                                 sendDisabledReason={
-                                  !canOperateThread
+                                  // Scopes load with the session, which a switched-off sandbox has not opened.
+                                  !canOperateThread && !activeEnvironmentWakeable
                                     ? gt("This connection cannot change threads.")
                                     : isEnvironmentChanging
                                       ? gt("Preparing machine")
@@ -3764,7 +3769,11 @@ export default function ChatView(props: ChatViewProps) {
                                     ? openUsageLimits
                                     : undefined
                                 }
-                                environmentUnavailable={activeEnvironmentUnavailableState}
+                                environmentUnavailable={
+                                  activeEnvironmentWakeable
+                                    ? null
+                                    : activeEnvironmentUnavailableState
+                                }
                                 activePendingApproval={activePendingApproval}
                                 pendingApprovals={pendingApprovals}
                                 onHeldRequestIdsChange={onHeldRequestIdsChange}

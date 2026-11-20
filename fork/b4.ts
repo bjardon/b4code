@@ -138,6 +138,8 @@ function deploy() {
     console.log(`b4: log in ${logPath}`);
     return;
   }
+  // A boat sandbox's idle check counts this as work, so it does not stop mid-build.
+  NodeFS.writeFileSync(NodePath.join(home, "boat-hold"), "");
   run("git", ["fetch", "origin"]);
   run("git", ["reset", "--hard", "origin/main"]);
   // The reset may have changed this script, so the rest runs from the new copy.
@@ -735,6 +737,162 @@ function boatSandboxState(name: string): string | undefined {
   return undefined;
 }
 
+function boatSandboxId(name: string): string {
+  const listing = read("boat", ["list", "--all", "--json", "--no-update"]);
+  const parsed: unknown = JSON.parse(listing);
+  if (typeof parsed === "object" && parsed !== null && "sandboxes" in parsed) {
+    const sandboxes: unknown = parsed.sandboxes;
+    if (Array.isArray(sandboxes)) {
+      for (const sandbox of sandboxes) {
+        if (typeof sandbox !== "object" || sandbox === null) continue;
+        if ("name" in sandbox && sandbox.name === name && "id" in sandbox) {
+          if (typeof sandbox.id === "string") return sandbox.id;
+        }
+      }
+    }
+  }
+  fail(`boat has no sandbox named ${name}.`);
+}
+
+/** A boat API key limited to one sandbox and `actions`; boat shows the secret only here. */
+function createBoatKey(label: string, sandboxId: string, actions: ReadonlyArray<string>): string {
+  const created = read("boat", [
+    "api-key",
+    "create",
+    label,
+    "--sandbox",
+    sandboxId,
+    "--actions",
+    actions.join(","),
+    "--ttl",
+    "365d",
+    "--json",
+    "--no-update",
+  ]);
+  const parsed: unknown = JSON.parse(created);
+  const secret =
+    typeof parsed === "object" && parsed !== null && "secret" in parsed ? parsed.secret : undefined;
+  if (typeof secret !== "string") fail("boat api-key create printed no key.");
+  return secret;
+}
+
+/**
+ * `boat configure <name> --url <sandbox server URL> --ssh <user@host>`, from the
+ * Mac with the boat CLI signed in. Writes this server's boat.json, which powers
+ * the sandbox, and the sandbox's, which stops it once it idles. The sandbox must
+ * be running. See fork/README.md.
+ */
+async function boat() {
+  const [action, name] = process.argv.slice(3);
+  const flag = (key: string) => {
+    const index = process.argv.indexOf(`--${key}`);
+    return index === -1 ? undefined : process.argv[index + 1];
+  };
+  const url = flag("url")?.replace(/\/+$/, "");
+  const ssh = flag("ssh");
+  if (action !== "configure" || name === undefined || url === undefined || ssh === undefined) {
+    fail(
+      "usage: node fork/b4.ts boat configure <sandbox name> --url <server URL> --ssh <user@host>",
+    );
+  }
+  const idleStopMinutes = Number(flag("idle-minutes") ?? "20");
+  const sandboxId = boatSandboxId(name);
+  const descriptor: unknown = await fetch(`${url}/.well-known/t3/environment`, {
+    signal: AbortSignal.timeout(5000),
+  }).then(
+    (response) => response.json(),
+    (error: unknown) =>
+      fail(
+        `${url} did not answer (${String(error)}). Resume ${name} with \`boat resume ${sandboxId}\`.`,
+      ),
+  );
+  const environmentId =
+    typeof descriptor === "object" && descriptor !== null && "environmentId" in descriptor
+      ? descriptor.environmentId
+      : undefined;
+  if (typeof environmentId !== "string") fail(`${url} did not say which environment it is.`);
+
+  const remote = NodeChildProcess.spawnSync(
+    "ssh",
+    ["-o", "BatchMode=yes", ssh, "umask 077 && mkdir -p ~/.b4-code && cat > ~/.b4-code/boat.json"],
+    {
+      input: `${JSON.stringify(
+        {
+          apiKey: createBoatKey(`b4-${name}-self`, sandboxId, [
+            "sandbox.read",
+            "sandbox.update",
+            "sandbox.stop",
+          ]),
+          self: { id: sandboxId, idleStopMinutes },
+        },
+        null,
+        2,
+      )}\n`,
+      stdio: ["pipe", "inherit", "inherit"],
+    },
+  );
+  if (remote.status !== 0) fail(`writing boat.json on ${ssh} failed.`);
+
+  // boat resumes onto a machine that booted before the disk arrived, so logind
+  // never saw the account's linger flag and its user services, b4-code among
+  // them, wait for the first login. A system unit starts them once the disk is in.
+  const linger = NodeChildProcess.spawnSync("ssh", ["-o", "BatchMode=yes", ssh, "bash -s"], {
+    input: [
+      "set -euo pipefail",
+      'unit="b4-linger-$(id -un).service"',
+      'sudo tee "/etc/systemd/system/$unit" >/dev/null <<EOF',
+      "[Unit]",
+      "Description=Start $(id -un)'s user services once boat attaches the disk",
+      "After=systemd-logind.service",
+      "Wants=systemd-logind.service",
+      "",
+      "[Service]",
+      "Type=oneshot",
+      "ExecStart=/bin/systemctl start user@$(id -u).service",
+      "",
+      "[Install]",
+      "WantedBy=multi-user.target",
+      "EOF",
+      "sudo systemctl daemon-reload",
+      'sudo systemctl enable "$unit"',
+      "",
+    ].join("\n"),
+    stdio: ["pipe", "inherit", "inherit"],
+  });
+  if (linger.status !== 0) fail(`installing the user-services unit on ${ssh} failed.`);
+
+  const configPath = NodePath.join(home, "boat.json");
+  let existing: Record<string, unknown> = {};
+  try {
+    const parsed: unknown = JSON.parse(NodeFS.readFileSync(configPath, "utf8"));
+    if (typeof parsed === "object" && parsed !== null) existing = { ...parsed };
+  } catch {}
+  const others = Array.isArray(existing.sandboxes)
+    ? existing.sandboxes.filter(
+        (entry: unknown) =>
+          typeof entry !== "object" || entry === null || !("id" in entry) || entry.id !== sandboxId,
+      )
+    : [];
+  const config = {
+    ...existing,
+    apiKey:
+      typeof existing.apiKey === "string"
+        ? existing.apiKey
+        : createBoatKey(`b4-${NodeOS.hostname()}`, sandboxId, [
+            "sandbox.read",
+            "sandbox.update",
+            "sandbox.stop",
+            "sandbox.resume",
+          ]),
+    sandboxes: [...others, { id: sandboxId, environmentId, label: name, url, ssh }],
+  };
+  NodeFS.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
+  console.log(
+    `b4: ${configPath} powers ${name} (${environmentId}); ${ssh} stops it after ${idleStopMinutes} idle minutes.`,
+  );
+  console.log("b4: restart this server (deploy) so agents here list the sandbox tools.");
+}
+
 function deployedBuild(): { node: string; commit: string } | undefined {
   let built: unknown;
   try {
@@ -839,7 +997,9 @@ const commands: Record<string, () => void | Promise<void>> = {
   doctor,
   pair,
   signing: createSigningIdentity,
+  boat,
 };
 const command = commands[process.argv[2] ?? ""];
-if (command === undefined) fail("usage: node fork/b4.ts <sync|deploy|service|doctor|pair|signing>");
+if (command === undefined)
+  fail("usage: node fork/b4.ts <sync|deploy|service|doctor|pair|signing|boat>");
 await command();

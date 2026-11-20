@@ -15,3 +15,5 @@
 - [x] b4-code replaces `t3@latest` in the devbox `bjardon` account (port 3773, tailnet), with the Fleet profile updated to match
 - [x] b4-code replaces `t3@latest` in the devbox `synora` account (port 3775, tailnet), with the Fleet profile updated to match
 - [x] Deploys and `doctor --all` cover boatbox's `synora` server (port 3775, tailnet), resuming the sandbox for a deploy when it's stopped
+- [x] boatbox sleeps unless used: B4 Code shows it on or off with Wake and Stop, a send to it wakes it, Mac agents wake it through linked-environment tools, and it stops itself after 20 idle minutes
+- [x] Work moves from the Mac to boatbox: a thread with its branch and uncommitted changes, or a whole project with its env files and install

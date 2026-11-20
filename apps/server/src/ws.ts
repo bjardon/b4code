@@ -1,4 +1,8 @@
-import { OrchestrationDispatchCommandError } from "@t3tools/contracts";
+import {
+  BOAT_SANDBOX_WS_METHODS,
+  BoatSandboxError,
+  OrchestrationDispatchCommandError,
+} from "@t3tools/contracts";
 // @effect-diagnostics-next-line nodeBuiltinImport:off -- A synchronous digest inside the pure provider mapping.
 import * as NodeCrypto from "node:crypto";
 import * as HostProcess from "@t3tools/shared/HostProcess";
@@ -259,6 +263,8 @@ import { pullRequestSyncKey } from "./pullRequest/pullRequestSyncKey.ts";
 import * as SqlClient from "effect/sql/SqlClient";
 import * as PullRequestSyncReactor from "./orchestration-v2/PullRequestSyncReactor.ts";
 import * as SourceControlDiscovery from "./sourceControl/SourceControlDiscovery.ts";
+import * as BoatSandboxes from "./boat/BoatSandboxes.ts";
+import * as BoatWork from "./boat/BoatWork.ts";
 import * as OtlpEndpointCheck from "./observability/OtlpEndpointCheck.ts";
 import * as TextGenerators from "./textGeneration/TextGenerators.ts";
 import * as SourceControlRepositoryService from "./sourceControl/SourceControlRepositoryService.ts";
@@ -1582,6 +1588,11 @@ export const layerWsRpc = (
       const sourceControlDiscovery = yield* SourceControlDiscovery.SourceControlDiscovery;
       const secretCheck = yield* SecretCheck.SecretCheck;
       const otlpEndpointCheck = yield* OtlpEndpointCheck.OtlpEndpointCheck;
+      const boatSandboxes = yield* Effect.serviceOption(BoatSandboxes.BoatSandboxes);
+      const boatWork = yield* Effect.serviceOption(BoatWork.BoatWork);
+      const boatUnavailable = Effect.fail(
+        new BoatSandboxError({ message: "This server does not power boat sandboxes." }),
+      );
       const textGenerators = yield* TextGenerators.TextGenerators;
       const sourceControlRepositories =
         yield* SourceControlRepositoryService.SourceControlRepositoryService;
@@ -2743,6 +2754,31 @@ export const layerWsRpc = (
         [WS_METHODS.serverRefreshUsageRates]: (_input) => usage.refreshRates,
         [WS_METHODS.serverRetryResourceTelemetry]: (_input) => resourceTelemetry.retry,
         [WS_METHODS.serverCheckOtlpEndpoint]: (input) => otlpEndpointCheck.check(input),
+        [BOAT_SANDBOX_WS_METHODS.list]: (_input) =>
+          Option.match(boatSandboxes, {
+            onNone: () => Effect.succeed({ sandboxes: [] }),
+            onSome: (service) => service.list,
+          }),
+        [BOAT_SANDBOX_WS_METHODS.wake]: ({ environmentId }) =>
+          Option.match(boatSandboxes, {
+            onNone: () => boatUnavailable,
+            onSome: (service) => service.wake(environmentId),
+          }),
+        [BOAT_SANDBOX_WS_METHODS.stop]: ({ environmentId }) =>
+          Option.match(boatSandboxes, {
+            onNone: () => boatUnavailable,
+            onSome: (service) => service.stop(environmentId),
+          }),
+        [BOAT_SANDBOX_WS_METHODS.moveThread]: (input) =>
+          Option.match(boatWork, {
+            onNone: () => boatUnavailable,
+            onSome: (service) => service.moveThread(input),
+          }),
+        [BOAT_SANDBOX_WS_METHODS.setupProject]: (input) =>
+          Option.match(boatWork, {
+            onNone: () => boatUnavailable,
+            onSome: (service) => service.setupProject(input),
+          }),
         [WS_METHODS.serverListTextGeneratorModels]: (input) => textGenerators.listModels(input),
         [WS_METHODS.serverPrepareTriage]: (input) => triage.prepare(input),
         [WS_METHODS.serverSignalProcess]: (input) => processDiagnostics.signal(input),
@@ -3615,6 +3651,17 @@ export const layer = Layer.unwrap(
     const reviewGuides = yield* PullRequestReviewGuideService.PullRequestReviewGuideService;
     const peerLinks = yield* PeerLinks.PeerLinks;
     const peerLinkRequests = yield* PeerLinkRequests.PeerLinkRequests;
+    // b4-code: optional so harnesses that never power sandboxes build without them.
+    const boatServices = Context.mergeAll(
+      Option.match(yield* Effect.serviceOption(BoatSandboxes.BoatSandboxes), {
+        onNone: () => Context.empty(),
+        onSome: (service) => Context.make(BoatSandboxes.BoatSandboxes, service),
+      }),
+      Option.match(yield* Effect.serviceOption(BoatWork.BoatWork), {
+        onNone: () => Context.empty(),
+        onSome: (service) => Context.make(BoatWork.BoatWork, service),
+      }),
+    );
     const sql = yield* SqlClient.SqlClient;
     return HttpRouter.add(
       "GET",
@@ -3715,6 +3762,7 @@ export const layer = Layer.unwrap(
               ),
               Layer.provide(Layer.succeed(PeerLinks.PeerLinks, peerLinks)),
               Layer.provide(Layer.succeed(PeerLinkRequests.PeerLinkRequests, peerLinkRequests)),
+              Layer.provide(Layer.succeedContext(boatServices)),
               Layer.provide(
                 SourceControlDiscovery.layer.pipe(
                   Layer.provide(

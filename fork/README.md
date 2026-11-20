@@ -63,6 +63,29 @@ On macOS, `deploy` also builds the B4 Code desktop app and installs it to `/Appl
 | `B4_PORT` | `3780`       | HTTP and WebSocket port              |
 | `B4_HOST` | `127.0.0.1`  | Bind address, such as a tailnet IP   |
 
+## boatbox: a sandbox that sleeps
+
+boatbox costs money only while it runs, so b4-code powers it from the Mac and stops it when it idles. The Mac server holds a boat API key scoped to the sandbox and wakes it for whoever needs it. boatbox's own server holds a second key and stops itself after 20 minutes with no running turn, so it still stops when the Mac sleeps. While a turn runs, it keeps boat's deadline two hours ahead.
+
+Set both ends up from the Mac, with the boat CLI signed in and boatbox running (`boat resume <id>`):
+
+```sh
+cd ~/.b4-code/src
+node fork/b4.ts boat configure boatbox --url https://boatbox.<tailnet>.ts.net:8443 --ssh synora@boatbox
+```
+
+It creates the two keys, writes `~/.b4-code/boat.json` on each machine (mode 600), and takes `--idle-minutes` to change the window. It also installs `b4-linger-synora.service` on boatbox. boat resumes onto a machine that booted before the disk arrived, so logind never sees synora's linger flag, and without the unit b4-code waits for the first SSH login to start. Deploy the Mac afterwards so its agents list the sandbox tools. Turn on **Settings → Labs → Linked environments** on both servers and link the Mac to boatbox: agents and the move below go through that link.
+
+What it gives you:
+
+- **Power.** Settings → Connections shows boatbox as on or off, with Wake and Stop buttons. A wake takes about a minute and a half, until b4-code answers there.
+- **Wake on send.** Sending in a boatbox thread while it's off wakes it, and the message goes out once B4 Code reconnects. The composer says so instead of "offline".
+- **Agents.** Any linked-environment call from a Mac agent to boatbox wakes it first: `t3_thread_send`, `t3_thread_launch`, `delegate_task`, and the rest. Following up on a task already running there never wakes it. Mac agents also get `t3_sandbox_power`, `t3_sandbox_move_thread`, and `t3_sandbox_setup_project`.
+- **Move a thread.** A Mac thread's menu has **Move to boatbox**. It snapshots the branch and its uncommitted and untracked files, pushes them to boatbox over Tailscale SSH (never through `origin`), creates a worktree there with the changes still uncommitted, copies the checkout's `.env*`, `.envrc` and `.dev.vars` files, runs the project's worktree setup script or its lockfile's install, and starts a boatbox thread whose first message carries the conversation. The Mac checkout stays as it was. A branch that already moved on boatbox is kept, and the move lands on `<branch>-moved-<id>`.
+- **Set up a project.** A project's menu has **Set up on boatbox**: it clones into `~/projects/<repo>`, registers the project, copies the env files, and installs dependencies on a fresh clone.
+
+`deploy` touches `~/.b4-code/boat-hold`, which counts as activity, so boatbox doesn't stop itself in the middle of a build.
+
 ## Things that behave differently from upstream
 
 - Don't use `t3 service install`, `t3 update`, or the app's **Update server** button for this server. They download upstream's release archive and would replace the fork. Update with `deploy`.

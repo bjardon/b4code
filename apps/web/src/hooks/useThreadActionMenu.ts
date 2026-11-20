@@ -47,6 +47,11 @@ import {
 } from "@t3tools/client-runtime/state/project-grouping";
 import { buildPhysicalToLogicalProjectKeyMap } from "../sidebarProjectGrouping";
 import { threadRuntimeCanArchive } from "@t3tools/client-runtime/state/models";
+import {
+  type BoatMoveMenuId,
+  boatMoveMenuItems,
+  runBoatMoveAction,
+} from "../lib/boatSandboxActions";
 import { useCopyToClipboard } from "./useCopyToClipboard";
 import { useNewThreadHandler } from "./useHandleNewThread";
 import { useClientSettings } from "./useSettings";
@@ -155,8 +160,22 @@ export function useThreadActionMenu(input: {
         canShareWithGuest,
         canTurnIntoProject: canTurnThreadIntoProject(threadRef),
       });
-      const clicked = await settlePromise(() => api.contextMenu.show(items, position));
+      const boatItems = boatMoveMenuItems(threadRef.environmentId);
+      const clicked = await settlePromise(() =>
+        api.contextMenu.show<ThreadActionMenuId | BoatMoveMenuId>(
+          [...items, ...boatItems],
+          position,
+        ),
+      );
       if (clicked._tag === "Failure" || clicked.value === null) return;
+      if (
+        runBoatMoveAction(
+          clicked.value,
+          threadRef,
+          (params) => void router.navigate({ to: "/$environmentId/$threadId", params }),
+        )
+      )
+        return;
       const action: ThreadActionMenuId = clicked.value;
       if (
         threadActionRequiresOperate(action) &&
