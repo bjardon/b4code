@@ -453,7 +453,7 @@ export function SavedBackendListRow({
           />
           <MenuItem onClick={() => setRenameOpen(true)}>
             <PencilIcon />
-            Rename…
+            <T>Rename…</T>
           </MenuItem>
           <MenuItem onClick={() => setRoutesOpen((open) => !open)}>
             <RouteIcon />

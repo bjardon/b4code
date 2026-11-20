@@ -51,6 +51,7 @@ describe("resolveRemoteOpenState", () => {
         bearerHttpBaseUrl: httpBaseUrl,
         isDesktopRenderer: true,
         remoteOpenTargets: TAILSCALE_TARGETS,
+        hostEnvironmentId: null,
       }),
     ).toEqual(expected);
   });

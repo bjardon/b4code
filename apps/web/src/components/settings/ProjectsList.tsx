@@ -5,6 +5,7 @@ import {
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
 import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
+import { T, useGT } from "gt-react";
 import { PlusIcon, Settings2Icon, Trash2Icon } from "lucide-react";
 
 import { openCommandPalette } from "../../commandPaletteBus";
@@ -53,6 +54,7 @@ function ProjectEntryDescription({
  * Configure opens the project's settings page; Remove deletes its entries.
  */
 export function ProjectsList() {
+  const gt = useGT();
   const { groups, scope, search, selectScope } = useSettingsScope();
   const threads = useThreadShells();
   const deleteProject = useAtomCommand(projectEnvironment.delete, { reportFailure: false });
@@ -135,8 +137,8 @@ export function ProjectsList() {
           toastManager.add(
             stackedThreadToast({
               type: "error",
-              title: `Failed to remove "${member.title}"`,
-              description: error instanceof Error ? error.message : "An error occurred.",
+              title: gt('Failed to remove "{title}"', { title: member.title }),
+              description: error instanceof Error ? error.message : gt("An error occurred."),
             }),
           );
         }
@@ -161,7 +163,7 @@ export function ProjectsList() {
   return (
     <SettingsPageContainer>
       <SettingsSection
-        title="Projects"
+        title={gt("Projects")}
         headerAction={
           <Button
             size="xs"
@@ -177,12 +179,16 @@ export function ProjectsList() {
             }
           >
             <PlusIcon className="size-3" />
-            <span>Add project</span>
+            <T>
+              <span>Add project</span>
+            </T>
           </Button>
         }
       >
         {entries.length === 0 ? (
-          <p className="px-4 py-3 text-sm text-muted-foreground">Click “Add project” to add one.</p>
+          <p className="px-4 py-3 text-sm text-muted-foreground">
+            <T>Click “Add project” to add one.</T>
+          </p>
         ) : (
           entries.map((entry) => (
             <SettingsRow
@@ -205,7 +211,7 @@ export function ProjectsList() {
                         <Button
                           size="icon-xs"
                           variant="ghost-muted"
-                          aria-label={`Configure ${entry.group.displayName}`}
+                          aria-label={gt("Configure {name}", { name: entry.group.displayName })}
                           onClick={() =>
                             selectScope({
                               project: entry.group.projectKey,
@@ -217,7 +223,9 @@ export function ProjectsList() {
                     >
                       <Settings2Icon />
                     </TooltipTrigger>
-                    <TooltipPopup>Configure</TooltipPopup>
+                    <TooltipPopup>
+                      <T>Configure</T>
+                    </TooltipPopup>
                   </Tooltip>
                   <Tooltip>
                     <TooltipTrigger
@@ -225,14 +233,16 @@ export function ProjectsList() {
                         <Button
                           size="icon-xs"
                           variant="ghost-destructive"
-                          aria-label={`Remove ${entry.group.displayName}`}
+                          aria-label={gt("Remove {name}", { name: entry.group.displayName })}
                           onClick={() => void removeProject(entry)}
                         />
                       }
                     >
                       <Trash2Icon />
                     </TooltipTrigger>
-                    <TooltipPopup>Remove</TooltipPopup>
+                    <TooltipPopup>
+                      {gt("Remove", { $context: "verb, removes a project" })}
+                    </TooltipPopup>
                   </Tooltip>
                 </div>
               }

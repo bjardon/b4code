@@ -1,4 +1,5 @@
 import type { EnvironmentId } from "@t3tools/contracts";
+import { T, useGT } from "gt-react";
 import { useState } from "react";
 
 import { environmentCatalog } from "~/connection/catalog";
@@ -49,6 +50,7 @@ function EnvironmentRenameForm({
   readonly label: string;
   readonly onClose: () => void;
 }) {
+  const gt = useGT();
   const [draft, setDraft] = useState(label);
   const [saving, setSaving] = useState(false);
   const setLabel = useAtomCommand(environmentCatalog.setLabel, "Rename environment");
@@ -65,8 +67,12 @@ function EnvironmentRenameForm({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Rename environment</DialogTitle>
-        <DialogDescription>The new name applies on this device only.</DialogDescription>
+        <DialogTitle>
+          <T>Rename environment</T>
+        </DialogTitle>
+        <DialogDescription>
+          <T>The new name applies on this device only.</T>
+        </DialogDescription>
       </DialogHeader>
       <DialogPanel>
         <form
@@ -77,7 +83,7 @@ function EnvironmentRenameForm({
         >
           <Input
             autoFocus
-            aria-label="Environment name"
+            aria-label={gt("Environment name")}
             value={draft}
             disabled={saving}
             spellCheck={false}
@@ -87,10 +93,10 @@ function EnvironmentRenameForm({
       </DialogPanel>
       <DialogFooter variant="bare">
         <Button variant="outline" onClick={onClose}>
-          Cancel
+          <T>Cancel</T>
         </Button>
         <Button disabled={!canSave} onClick={() => void save()}>
-          Save
+          <T>Save</T>
         </Button>
       </DialogFooter>
     </>

@@ -2040,8 +2040,8 @@ function OpenCommandPaletteDialog(props: {
             type: "info",
             title:
               existing.archivedAt != null
-                ? `Restored ${existing.title}`
-                : `${existing.title} is already a project`,
+                ? gt("Restored {title}", { title: existing.title })
+                : gt("{title} is already a project", { title: existing.title }),
           }),
         );
         setOpen(false);
