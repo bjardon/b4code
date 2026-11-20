@@ -1,4 +1,5 @@
 import type { EnvironmentId } from "@t3tools/contracts";
+import { T, useGT } from "gt-react";
 import type { ReactNode } from "react";
 
 import { usePrimaryEnvironmentId } from "../../state/environments";
@@ -24,6 +25,7 @@ export function ProjectCheckouts({
   canRemove: (member: SidebarProjectGroupMember) => boolean;
   onRemove: (member: SidebarProjectGroupMember) => void;
 }) {
+  const gt = useGT();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const byEnvironment = new Map<EnvironmentId, SidebarProjectGroupMember[]>();
   for (const member of members) {
@@ -38,10 +40,12 @@ export function ProjectCheckouts({
   );
 
   return (
-    <SettingsSection title="Checkouts">
+    <SettingsSection title={gt("Checkouts")}>
       <p className="px-3 pt-2.5 text-xs text-muted-foreground sm:px-4">
-        Grouping rule decides how each checkout joins project groups in the sidebar. Changing it can
-        move a checkout to a different project.
+        <T>
+          Grouping rule decides how each checkout joins project groups in the sidebar. Changing it
+          can move a checkout to a different project.
+        </T>
       </p>
       {environments.map((checkouts) => {
         const main =
@@ -50,7 +54,7 @@ export function ProjectCheckouts({
         return (
           <div key={checkouts[0]!.environmentId} className="px-3 py-3 sm:px-4">
             <h3 className="text-sm font-medium text-foreground">
-              {checkouts[0]!.environmentLabel ?? "Environment"}
+              {checkouts[0]!.environmentLabel ?? gt("Environment")}
             </h3>
             <ul className="mt-1.5 space-y-1">
               {ordered.map((member) => (
@@ -67,7 +71,10 @@ export function ProjectCheckouts({
                       <p>{member.workspaceRoot}</p>
                     </TooltipPopup>
                   </Tooltip>
-                  <DiffFilePathCopyButton filePath={member.workspaceRoot} />
+                  <DiffFilePathCopyButton
+                    filePath={member.workspaceRoot}
+                    workspaceRoot={undefined}
+                  />
                   <div className="w-56 shrink-0">{renderGrouping(member)}</div>
                   {member === main ? null : (
                     <Button
@@ -75,9 +82,9 @@ export function ProjectCheckouts({
                       variant="outline"
                       disabled={!canRemove(member)}
                       onClick={() => onRemove(member)}
-                      aria-label={`Remove checkout ${member.workspaceRoot}`}
+                      aria-label={gt("Remove checkout {path}", { path: member.workspaceRoot })}
                     >
-                      Remove
+                      {gt("Remove", { $context: "verb, removes a checkout" })}
                     </Button>
                   )}
                 </li>

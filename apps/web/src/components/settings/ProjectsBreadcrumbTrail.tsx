@@ -1,3 +1,5 @@
+import { T, useGT } from "gt-react";
+
 import {
   WorkspaceBreadcrumb,
   WorkspaceBreadcrumbItem,
@@ -13,14 +15,17 @@ import { useOptionalSettingsScope } from "./SettingsScopeContext";
  * returns to the list. The list itself ends at `Projects`.
  */
 export function ProjectsBreadcrumbTrail() {
+  const gt = useGT();
   const scope = useOptionalSettingsScope();
   const projectKey = scope?.search.project;
   const project = projectKey
     ? scope.groups.find((group) => group.projectKey === projectKey)
     : undefined;
   return (
-    <WorkspaceBreadcrumb ariaLabel="Settings breadcrumb">
-      <WorkspaceBreadcrumbItem>Settings</WorkspaceBreadcrumbItem>
+    <WorkspaceBreadcrumb ariaLabel={gt("Settings breadcrumb")}>
+      <WorkspaceBreadcrumbItem>
+        <T>Settings</T>
+      </WorkspaceBreadcrumbItem>
       <WorkspaceBreadcrumbSeparator />
       {scope && projectKey ? (
         <>
@@ -31,19 +36,21 @@ export function ProjectsBreadcrumbTrail() {
                 scope.selectScope(scope.search.machine ? { machine: scope.search.machine } : {})
               }
             >
-              Projects
+              <T>Projects</T>
             </InlineButton>
           </WorkspaceBreadcrumbItem>
           <WorkspaceBreadcrumbSeparator />
           <WorkspaceBreadcrumbItem current className="gap-1.5">
             {project ? <ProjectFavicon project={project} className="size-3.5 shrink-0" /> : null}
             <WorkspaceBreadcrumbText>
-              {project?.displayName ?? "Unavailable project"}
+              {project?.displayName ?? gt("Unavailable project")}
             </WorkspaceBreadcrumbText>
           </WorkspaceBreadcrumbItem>
         </>
       ) : (
-        <WorkspaceBreadcrumbItem current>Projects</WorkspaceBreadcrumbItem>
+        <WorkspaceBreadcrumbItem current>
+          <T>Projects</T>
+        </WorkspaceBreadcrumbItem>
       )}
     </WorkspaceBreadcrumb>
   );

@@ -1,4 +1,5 @@
 import { resolveEnvironmentMachineKind } from "@t3tools/contracts";
+import { useGT } from "gt-react";
 
 import type { SidebarProjectGroupMember } from "../../sidebarProjectGrouping";
 import { useEnvironments } from "../../state/environments";
@@ -16,6 +17,7 @@ export function ProjectEnvironmentsPopover({
 }: {
   members: ReadonlyArray<SidebarProjectGroupMember>;
 }) {
+  const gt = useGT();
   const { environments } = useEnvironments();
   const sections = [...new Set(members.map((member) => member.environmentId))].map(
     (environmentId) => {
@@ -28,7 +30,7 @@ export function ProjectEnvironmentsPopover({
       );
       return {
         environmentId,
-        label: environment?.label ?? "Unavailable environment",
+        label: environment?.label ?? gt("Unavailable environment"),
         machine: resolveEnvironmentMachineKind(environment?.serverConfig ?? null),
         // Worktrees stay in the project's own settings; an environment with only
         // worktrees still lists them so it never shows up empty.
@@ -36,7 +38,9 @@ export function ProjectEnvironmentsPopover({
       };
     },
   );
-  const caption = `${sections.length} environment${sections.length === 1 ? "" : "s"}`;
+  const caption = gt("{count, plural, one {{count} environment} other {{count} environments}}", {
+    count: sections.length,
+  });
 
   return (
     <Popover>
@@ -47,7 +51,7 @@ export function ProjectEnvironmentsPopover({
         render={
           <button
             type="button"
-            aria-label={`Show where this project is set up: ${caption}`}
+            aria-label={gt("Show where this project is set up: {caption}", { caption })}
             className="cursor-help underline decoration-border underline-offset-2 outline-hidden hover:text-foreground focus-visible:text-foreground"
           />
         }
@@ -76,7 +80,10 @@ export function ProjectEnvironmentsPopover({
                     <span className="min-w-0 truncate font-mono text-xs text-foreground">
                       {member.workspaceRoot}
                     </span>
-                    <DiffFilePathCopyButton filePath={member.workspaceRoot} />
+                    <DiffFilePathCopyButton
+                      filePath={member.workspaceRoot}
+                      workspaceRoot={undefined}
+                    />
                   </li>
                 ))}
               </ul>
