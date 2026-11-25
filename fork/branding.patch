@@ -1,5 +1,5 @@
 diff --git a/apps/desktop/package.json b/apps/desktop/package.json
-index d91a9ee5e4..b42274a343 100644
+index 92a67f2947..3fdb30a79b 100644
 --- a/apps/desktop/package.json
 +++ b/apps/desktop/package.json
 @@ -44,5 +44,5 @@
@@ -10,10 +10,10 @@ index d91a9ee5e4..b42274a343 100644
 +  "productName": "B4 Code"
  }
 diff --git a/apps/desktop/src/app/DesktopEnvironment.ts b/apps/desktop/src/app/DesktopEnvironment.ts
-index d5fed4b228..0847834b18 100644
+index d012b5afe6..f1608716e6 100644
 --- a/apps/desktop/src/app/DesktopEnvironment.ts
 +++ b/apps/desktop/src/app/DesktopEnvironment.ts
-@@ -85,7 +85,7 @@ export class DesktopEnvironment extends Context.Service<
+@@ -86,7 +86,7 @@ export class DesktopEnvironment extends Context.Service<
    }
  >()("@t3tools/desktop/app/DesktopEnvironment") {}
  
@@ -49,10 +49,10 @@ index 0124aa72e0..66e019d433 100644
      const legacyPath = path.join(input.appDataDirectory, names.legacy);
      const inspect = (resourcePath: string) =>
 diff --git a/apps/web/index.html b/apps/web/index.html
-index 051e3090a5..209b7d6f78 100644
+index 7f8be6fa93..6f091073d1 100644
 --- a/apps/web/index.html
 +++ b/apps/web/index.html
-@@ -681,13 +681,13 @@
+@@ -690,13 +690,13 @@
        if (desktopDisplayName) document.title = desktopDisplayName;
      </script>
      <!-- vite.config.ts stamps the web build's channel into this title. -->
@@ -66,9 +66,9 @@ index 051e3090a5..209b7d6f78 100644
 -          <img id="boot-shell-logo" src="/apple-touch-icon.png" alt="T3 Code" />
 +        <div id="boot-shell-card" aria-label="B4 Code splash screen">
 +          <img id="boot-shell-logo" src="/apple-touch-icon.png" alt="B4 Code" />
+           <p id="boot-shell-progress" role="status" aria-live="polite"></p>
          </div>
        </div>
-     </div>
 diff --git a/apps/web/src/branding.ts b/apps/web/src/branding.ts
 index bf5b76f0dd..f3155a5422 100644
 --- a/apps/web/src/branding.ts
@@ -100,10 +100,10 @@ index d0882a5dd6..bc78407497 100644
        />
      </svg>
 diff --git a/apps/web/src/components/sidebar/SidebarChrome.tsx b/apps/web/src/components/sidebar/SidebarChrome.tsx
-index 1dbc9b9fc6..aaa5920527 100644
+index 637921f1f9..30a1af29e2 100644
 --- a/apps/web/src/components/sidebar/SidebarChrome.tsx
 +++ b/apps/web/src/components/sidebar/SidebarChrome.tsx
-@@ -186,7 +186,7 @@ function SidebarBrand({ onBackdrop }: { onBackdrop: boolean }) {
+@@ -187,7 +187,7 @@ function SidebarBrand({ onBackdrop }: { onBackdrop: boolean }) {
  function SidebarBrandMark({ onBackdrop }: { onBackdrop: boolean }) {
    return (
      <span className="inline-flex min-w-0 items-baseline gap-1 text-sm font-medium tracking-tight">
@@ -113,10 +113,10 @@ index 1dbc9b9fc6..aaa5920527 100644
          className={cn(
            "truncate [text-box:trim-both_cap_alphabetic] supports-[text-box:trim-both_cap_alphabetic]:py-1",
 diff --git a/apps/web/vite.config.ts b/apps/web/vite.config.ts
-index 073fca7943..243cf4e5ba 100644
+index c88106c8d5..8852c85981 100644
 --- a/apps/web/vite.config.ts
 +++ b/apps/web/vite.config.ts
-@@ -284,7 +284,7 @@ function bootstrapTitlePlugin(): Plugin {
+@@ -260,7 +260,7 @@ function bootstrapTitlePlugin(): Plugin {
          hostedAppChannel: configuredHostedAppChannel,
          development,
        });
@@ -126,7 +126,7 @@ index 073fca7943..243cf4e5ba 100644
      },
    };
 diff --git a/scripts/build-desktop-artifact.ts b/scripts/build-desktop-artifact.ts
-index 9d34e2412b..9ccecde294 100644
+index 1d334ad98e..012975a34d 100644
 --- a/scripts/build-desktop-artifact.ts
 +++ b/scripts/build-desktop-artifact.ts
 @@ -63,7 +63,7 @@ import { Command, Flag } from "effect/cli";
@@ -138,7 +138,7 @@ index 9d34e2412b..9ccecde294 100644
  const APPLE_TEAM_ID_PATTERN = /^[A-Z0-9]{10}$/u;
  
  const BuildPlatform = Schema.Literals(["mac", "linux", "win"]);
-@@ -2870,8 +2870,8 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
+@@ -2907,8 +2907,8 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
        },
        protocols: [
          {
@@ -149,7 +149,7 @@ index 9d34e2412b..9ccecde294 100644
          },
          {
            name: "Web site URL",
-@@ -2923,8 +2923,8 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
+@@ -2960,8 +2960,8 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
        maintainer: "T3 Tools <hello@t3.codes>",
        protocols: [
          {
@@ -160,7 +160,7 @@ index 9d34e2412b..9ccecde294 100644
          },
        ],
        desktop: {
-@@ -3914,7 +3914,7 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
+@@ -3958,7 +3958,7 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
        ? path.join(stageAppDir, WINDOWS_SERVER_RESOURCE_SOURCE_DIR, WINDOWS_SERVER_ASAR_RESOURCE)
        : undefined;
    const stagePackageJson: StagePackageJson = {
