@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// @effect-diagnostics nodeBuiltinImport:off globalConsole:off globalFetch:off globalDate:off - runs before `vp i`, so only Node built-ins exist.
+// @effect-diagnostics nodeBuiltinImport:off globalConsole:off globalFetch:off globalDate:off globalTimers:off - runs before `vp i`, so only Node built-ins exist.
 /**
- * Builds and runs b4-code from a dedicated checkout: sync, deploy, service,
- * doctor, pair, signing. fork/README.md covers each command and B4_* variable.
+ * Builds and runs b4-code from a dedicated checkout: sync, deploy, deploy-result,
+ * service, doctor, pair, signing, boat. fork/README.md covers each command and B4_* variable.
  */
 import * as NodeChildProcess from "node:child_process";
 import * as NodeCrypto from "node:crypto";
@@ -17,6 +17,8 @@ const home = NodePath.resolve(
 const serviceSettingsPath = NodePath.join(home, "service.json");
 const buildRecordPath = NodePath.join(home, "build.json");
 const serviceLogPath = NodePath.join(home, "logs/service.log");
+// Each deploy's log, result, and launchd plist, named by its id.
+const deploysDir = NodePath.join(home, "logs/deploys");
 const deployCheckout = NodePath.join(home, "src");
 const serverEntry = NodePath.join(repoRoot, "apps/server/dist/bin.mjs");
 const pinnedNodesDir = NodePath.join(home, "node");
@@ -53,6 +55,8 @@ const APP_ICON_TARGETS = {
 } as const;
 
 const LAUNCHD_LABEL = "dev.b4code.server";
+const DEPLOY_JOB_LAUNCHD = "dev.b4code.deploy";
+const DEPLOY_JOB_SYSTEMD = "b4-code-deploy";
 // boatbox is a boat.dev sandbox that runs only while Bruno works, and SSH fails while it's stopped.
 const LINUX_SSH_TARGETS: ReadonlyArray<{ target: string; boatSandbox?: string }> = [
   { target: "devbox" },
@@ -112,38 +116,466 @@ function sync() {
   run("git", ["push", "--force-with-lease=main:origin/main", "origin", "main"]);
 }
 
-function deploy() {
+async function deploy() {
   // `reset --hard` below discards local changes, so it only runs in the checkout
   // reserved for deploys, never in one used for development.
   if (repoRoot !== deployCheckout) {
     fail(`deploy only runs from ${deployCheckout}; this checkout is ${repoRoot}.`);
   }
   if (read("git", ["branch", "--show-current"]) !== "main") fail("check out main first.");
-  // The restart at the end ends any session the b4-code server hosts, such as an
-  // agent's. Run detached from it and log to a file the next session can read.
+  // The restart at the end kills any session the b4-code server hosts, along with
+  // everything its provider started, so the deploy runs as a launchd or systemd job
+  // that belongs to no session. Every deploy goes through that one job, which makes
+  // the service manager what keeps two from running at once.
   const sessionHome = process.env.T3CODE_HOME;
-  if (sessionHome !== undefined && NodePath.resolve(sessionHome) === home) {
-    const logPath = NodePath.join(home, "logs/deploy.log");
-    NodeFS.mkdirSync(NodePath.dirname(logPath), { recursive: true });
-    const log = NodeFS.openSync(logPath, "w");
-    const environment = { ...process.env };
-    delete environment.T3CODE_HOME;
-    NodeChildProcess.spawn(process.execPath, [NodePath.join(repoRoot, "fork/b4.ts"), "deploy"], {
-      cwd: repoRoot,
-      detached: true,
-      env: environment,
-      stdio: ["ignore", log, log],
-    }).unref();
-    console.log(`b4: deploying in the background because the restart ends this session.`);
-    console.log(`b4: log in ${logPath}`);
+  const inSession = sessionHome !== undefined && NodePath.resolve(sessionHome) === home;
+  for (;;) {
+    const id = startOrAttachDeploy();
+    if (inSession)
+      // A turn the restart cuts off mid-command is one the server resumes.
+      console.log(
+        "b4: waiting for it. The restart ends this turn and the server resumes it; then run `cd ~/.b4-code/src && node fork/b4.ts deploy-result` instead of deploying again.",
+      );
+    const record = await waitForDeploy(id, { stream: !inSession });
+    // A deploy this one attached to, or a push during the build, can leave origin/main
+    // ahead of what was built, so that commit gets a deploy of its own.
+    if (record?.ok !== true || shippedLatest(id, record) !== "stale") return;
+    process.exitCode = 0;
+    console.log("b4: so this deploy ships origin/main next.");
+  }
+}
+
+// Whether the deploy built what origin/main is now: "shipped" means exactly that. Anything
+// else sets exit code 1. The waiting `deploy` follows up on "stale" itself; a session the
+// restart cut off learns it from deploy-result.
+function shippedLatest(id: string, record: DeployRecord): "current" | "stale" | "unverified" {
+  const built = record.commit?.slice(0, 10) ?? "an unknown commit";
+  const latest = remoteMainCommit();
+  if (latest !== undefined && latest === record.commit) {
+    console.log(`b4: deploy ${id} shipped ${latest}, the tip of origin/main.`);
+    return "current";
+  }
+  process.exitCode = 1;
+  if (latest === undefined) {
+    console.error(
+      `b4: deploy ${id} built ${built}, but origin/main couldn't be read to confirm it's the latest.`,
+    );
+    return "unverified";
+  }
+  console.error(
+    `b4: deploy ${id} built ${built}, but origin/main is now ${latest.slice(0, 10)}; deploy again to ship it.`,
+  );
+  return "stale";
+}
+
+function remoteMainCommit(): string | undefined {
+  const remote = NodeChildProcess.spawnSync("git", ["ls-remote", "origin", "refs/heads/main"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    timeout: 30_000,
+  });
+  return remote.status === 0 ? /^[0-9a-f]{40}/.exec(remote.stdout)?.[0] : undefined;
+}
+
+function startOrAttachDeploy(): string {
+  let lastError = "";
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const running = runningDeployId();
+    // A job that already wrote its result is only unloading; the next deploy is a new one.
+    if (running !== undefined && readDeployRecord(running)?.finishedAt === undefined) {
+      console.log(`b4: deploy ${running} is already running; waiting for it.`);
+      return running;
+    }
+    if (running !== undefined) {
+      lastError = `deploy ${running} finished but is still unloading`;
+      sleep(500);
+      continue;
+    }
+    clearExitedDeployJob();
+    const id = `${Date.now()}-${process.pid}`;
+    // Only one job can hold the label or unit name, so a deploy that loses a race to
+    // start finds the winner on the next pass.
+    const started = startDeployJob(id);
+    if (started === true) {
+      // Written here as well as by the job, so a run counts once it starts, even if
+      // the job dies before writing anything.
+      seedDeployRecord(id, new Date().toISOString());
+      console.log(`b4: started deploy ${id}, log in ${deployFile(id, "log")}`);
+      return id;
+    }
+    NodeFS.rmSync(deployFile(id, "plist"), { force: true });
+    lastError = started;
+    sleep(500);
+  }
+  return fail(`could neither start a deploy job nor find a running one: ${lastError}`);
+}
+
+function deployFile(id: string, extension: "log" | "json" | "plist"): string {
+  return NodePath.join(deploysDir, `${id}.${extension}`);
+}
+
+// The job only needs what finds the build tools and the clone's remote.
+function deployJobEnvironment(): ReadonlyArray<[string, string]> {
+  const names = ["PATH", "HOME", "USER", "LOGNAME", "LANG", "SSH_AUTH_SOCK", "NODE_OPTIONS"];
+  const passed = Object.entries(process.env).flatMap(([name, value]): Array<[string, string]> =>
+    value !== undefined && (names.includes(name) || name.startsWith("B4_")) ? [[name, value]] : [],
+  );
+  // Resolved here, since the job starts in the checkout, where a relative B4_HOME means
+  // something else.
+  return [...passed.filter(([name]) => name !== "B4_HOME"), ["B4_HOME", home]];
+}
+
+function deployJobTarget(): string {
+  return `gui/${NodeOS.userInfo().uid}/${DEPLOY_JOB_LAUNCHD}`;
+}
+
+// True once the job started, or what the service manager said when it didn't.
+function startDeployJob(id: string): true | string {
+  NodeFS.mkdirSync(deploysDir, { recursive: true });
+  const log = deployFile(id, "log");
+  const program = [process.execPath, NodePath.join(repoRoot, "fork/b4.ts"), "__deployJob", id];
+  if (isMac) {
+    const plist = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
+      '<plist version="1.0">',
+      "<dict>",
+      `  <key>Label</key><string>${DEPLOY_JOB_LAUNCHD}</string>`,
+      "  <key>ProgramArguments</key>",
+      "  <array>",
+      ...program.map((argument) => `    <string>${xml(argument)}</string>`),
+      "  </array>",
+      "  <key>EnvironmentVariables</key>",
+      "  <dict>",
+      ...deployJobEnvironment().map(
+        ([key, value]) => `    <key>${xml(key)}</key><string>${xml(value)}</string>`,
+      ),
+      "  </dict>",
+      `  <key>WorkingDirectory</key><string>${xml(repoRoot)}</string>`,
+      "  <key>RunAtLoad</key><true/>",
+      `  <key>StandardOutPath</key><string>${xml(log)}</string>`,
+      `  <key>StandardErrorPath</key><string>${xml(log)}</string>`,
+      // launchd's default of 256 open files is too few for `vp i` and the build, as for the server.
+      "  <key>SoftResourceLimits</key>",
+      "  <dict><key>NumberOfFiles</key><integer>10240</integer></dict>",
+      "</dict>",
+      "</plist>",
+      "",
+    ].join("\n");
+    const plistPath = deployFile(id, "plist");
+    NodeFS.writeFileSync(plistPath, plist);
+    // Fails while the label is loaded, so two deploys never both start.
+    return startResult(
+      NodeChildProcess.spawnSync(
+        "launchctl",
+        ["bootstrap", `gui/${NodeOS.userInfo().uid}`, plistPath],
+        { encoding: "utf8" },
+      ),
+    );
+  }
+  // Fails while a unit with this name exists, so two deploys never both start.
+  return startResult(
+    NodeChildProcess.spawnSync(
+      "systemd-run",
+      [
+        "--user",
+        `--unit=${DEPLOY_JOB_SYSTEMD}`,
+        "--collect",
+        "--quiet",
+        // Type=exec reports a missing executable here, not later; the property predates --service-type.
+        "--property=Type=exec",
+        "--property=LimitNOFILE=10240",
+        `--property=WorkingDirectory=${repoRoot}`,
+        `--property=StandardOutput=append:${log}`,
+        `--property=StandardError=append:${log}`,
+        ...deployJobEnvironment().map(([key, value]) => `--setenv=${key}=${value}`),
+        "--",
+        ...program,
+      ],
+      { encoding: "utf8" },
+    ),
+  );
+}
+
+function startResult(result: NodeChildProcess.SpawnSyncReturns<string>): true | string {
+  if (result.status === 0) return true;
+  return result.error?.message ?? (result.stderr.trim() || `exited with ${String(result.status)}`);
+}
+
+// The id of the deploy job holding the label or unit name, read from its arguments.
+function runningDeployId(): string | undefined {
+  if (isMac) {
+    const job = NodeChildProcess.spawnSync("launchctl", ["print", deployJobTarget()], {
+      encoding: "utf8",
+    });
+    // An exited job stays loaded until it's booted out; clearExitedDeployJob does that.
+    if (job.status !== 0 || /^\tstate = not running$/m.test(job.stdout)) return undefined;
+    return /__deployJob\s+(\d+-\d+)/.exec(job.stdout)?.[1];
+  }
+  const shown = NodeChildProcess.spawnSync(
+    "systemctl",
+    ["--user", "show", DEPLOY_JOB_SYSTEMD, "-p", "ActiveState", "-p", "ExecStart"],
+    { encoding: "utf8" },
+  );
+  if (shown.status !== 0) return undefined;
+  const unit = shown.stdout;
+  const state = /^ActiveState=(.*)$/m.exec(unit)?.[1];
+  // is-active alone misses a unit that is still starting or stopping, which still holds its name.
+  if (!["active", "activating", "deactivating", "reloading"].includes(state ?? ""))
+    return undefined;
+  return /__deployJob\s+(\d+-\d+)/.exec(unit)?.[1];
+}
+
+// A job boots itself out when it finishes, so an exited one left loaded was killed.
+// Two deploys starting in the same instant after that could both clear it, and the
+// second would stop the first's new job; only a crash leaves this state.
+function clearExitedDeployJob() {
+  if (!isMac) {
+    NodeChildProcess.spawnSync("systemctl", ["--user", "reset-failed", DEPLOY_JOB_SYSTEMD], {
+      stdio: "ignore",
+    });
     return;
   }
+  const target = deployJobTarget();
+  const exited = () => {
+    const job = NodeChildProcess.spawnSync("launchctl", ["print", target], { encoding: "utf8" });
+    return job.status === 0 && /^\tstate = not running$/m.test(job.stdout);
+  };
+  if (!exited()) return;
+  // Two deploys recovering at once are staggered by pid, and each looks again right
+  // before booting out, so the later one sees the other's new job and leaves it.
+  sleep(process.pid % 300);
+  if (!exited()) return;
+  NodeChildProcess.spawnSync("launchctl", ["bootout", target], { stdio: "ignore" });
+  // As for the service: bootstrap fails until the booted-out job is gone.
+  for (let attempt = 0; attempt < 50; attempt++) {
+    if (
+      NodeChildProcess.spawnSync("launchctl", ["print", target], { stdio: "ignore" }).status !== 0
+    )
+      break;
+    sleep(200);
+  }
+}
+
+// Runs as the launchd or systemd job, with its output going to the run's log.
+function deployJob() {
+  const id = process.argv[3] ?? fail("__deployJob needs an id.");
+  const startedAt = new Date().toISOString();
+  seedDeployRecord(id, startedAt);
+  const environment = { ...process.env };
+  delete environment.T3CODE_HOME;
+  const deployed = NodeChildProcess.spawnSync(
+    process.execPath,
+    [NodePath.join(repoRoot, "fork/b4.ts"), "__deploy"],
+    { cwd: repoRoot, env: environment, stdio: "inherit" },
+  );
+  const head = NodeChildProcess.spawnSync("git", ["rev-parse", "HEAD"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  writeDeployRecord(id, {
+    startedAt,
+    ...(head.status === 0 ? { commit: head.stdout.trim() } : {}),
+    finishedAt: new Date().toISOString(),
+    ok: deployed.status === 0,
+    exit: String(deployed.status ?? deployed.signal ?? deployed.error?.message),
+  });
+  pruneDeploys();
+  // Unloading the label lets the next deploy start without booting out a finished job.
+  // On launchd that stops this process too, after the result is written.
+  if (isMac) NodeChildProcess.spawnSync("launchctl", ["bootout", deployJobTarget()]);
+}
+
+// The deploy itself, inside the job.
+function deployStep() {
+  if (repoRoot !== deployCheckout) fail(`deploy only runs from ${deployCheckout}.`);
   // A boat sandbox's idle check counts this as work, so it does not stop mid-build.
   NodeFS.writeFileSync(NodePath.join(home, "boat-hold"), "");
   run("git", ["fetch", "origin"]);
   run("git", ["reset", "--hard", "origin/main"]);
   // The reset may have changed this script, so the rest runs from the new copy.
   run(process.execPath, [NodePath.join(repoRoot, "fork/b4.ts"), "__build"]);
+}
+
+function deployIds(): Array<string> {
+  let names: Array<string> = [];
+  try {
+    names = NodeFS.readdirSync(deploysDir);
+  } catch {}
+  const ids = new Set(
+    names.flatMap((name) => /^(\d+-\d+)\.(?:log|json|plist)$/.exec(name)?.[1] ?? []),
+  );
+  return [...ids].toSorted((a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10));
+}
+
+function pruneDeploys() {
+  for (const id of deployIds().slice(0, -10))
+    for (const extension of ["log", "json", "plist"] as const)
+      NodeFS.rmSync(deployFile(id, extension), { force: true });
+}
+
+interface DeployRecord {
+  startedAt: string;
+  /** What the checkout was at when the deploy finished. */
+  commit?: string;
+  finishedAt?: string;
+  ok?: boolean;
+  exit?: string;
+}
+
+function writeDeployRecord(id: string, record: DeployRecord) {
+  const path = deployFile(id, "json");
+  const staged = `${path}.${process.pid}`;
+  NodeFS.writeFileSync(staged, `${JSON.stringify(record, null, 2)}\n`);
+  NodeFS.renameSync(staged, path);
+}
+
+// The starter and the job both seed a run's record, and either may come second, so the
+// seed only creates it: it never replaces a result the job already wrote.
+function seedDeployRecord(id: string, startedAt: string) {
+  const path = deployFile(id, "json");
+  const staged = `${path}.${process.pid}`;
+  NodeFS.writeFileSync(staged, `${JSON.stringify({ startedAt }, null, 2)}\n`);
+  try {
+    NodeFS.linkSync(staged, path);
+  } catch (error) {
+    if (!(error instanceof Error && "code" in error && error.code === "EEXIST")) throw error;
+  } finally {
+    NodeFS.rmSync(staged, { force: true });
+  }
+}
+
+function readDeployRecord(id: string): DeployRecord | undefined {
+  let record: unknown;
+  try {
+    record = JSON.parse(NodeFS.readFileSync(deployFile(id, "json"), "utf8"));
+  } catch {
+    return undefined;
+  }
+  if (typeof record !== "object" || record === null) return undefined;
+  if (!("startedAt" in record) || typeof record.startedAt !== "string") return undefined;
+  const { startedAt } = record;
+  const commit =
+    "commit" in record && typeof record.commit === "string" ? { commit: record.commit } : {};
+  if (
+    "finishedAt" in record &&
+    typeof record.finishedAt === "string" &&
+    "ok" in record &&
+    typeof record.ok === "boolean" &&
+    "exit" in record &&
+    typeof record.exit === "string"
+  )
+    return {
+      startedAt,
+      ...commit,
+      finishedAt: record.finishedAt,
+      ok: record.ok,
+      exit: record.exit,
+    };
+  return { startedAt };
+}
+
+// A job can take a moment to show as running and to write its first record, so only
+// a stretch with neither the job nor a result counts as it dying.
+// Undefined, with exit code 1, when the deploy died without a result.
+async function waitForDeploy(
+  id: string,
+  options: { readonly stream: boolean },
+): Promise<DeployRecord | undefined> {
+  const log = deployFile(id, "log");
+  let printed = 0;
+  let goneSince: number | undefined;
+  for (;;) {
+    if (options.stream) printed = printLogFrom(log, printed);
+    const record = readDeployRecord(id);
+    if (record?.finishedAt !== undefined) {
+      if (options.stream) printLogFrom(log, printed);
+      reportDeploy(id, record, options);
+      return record;
+    }
+    if (runningDeployId() === id) goneSince = undefined;
+    else if ((goneSince ??= Date.now()) < Date.now() - 15_000) {
+      // Not fail(): exiting at once can drop this line while stdout is a pipe.
+      console.error(`b4: deploy ${id} stopped without a result; its log is ${log}.`);
+      process.exitCode = 1;
+      return undefined;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+}
+
+function printLogFrom(log: string, offset: number): number {
+  let file: number;
+  try {
+    file = NodeFS.openSync(log, "r");
+  } catch {
+    return offset;
+  }
+  try {
+    const length = NodeFS.fstatSync(file).size;
+    if (length <= offset) return offset;
+    const chunk = Buffer.alloc(length - offset);
+    const read = NodeFS.readSync(file, chunk, 0, chunk.length, offset);
+    process.stdout.write(chunk.subarray(0, read));
+    return offset + read;
+  } finally {
+    NodeFS.closeSync(file);
+  }
+}
+
+function reportDeploy(id: string, record: DeployRecord, options: { readonly stream: boolean }) {
+  const log = deployFile(id, "log");
+  let lines: Array<string> = [];
+  // A streamed deploy already printed its log.
+  if (!options.stream)
+    try {
+      const text = NodeFS.readFileSync(log, "utf8").trimEnd();
+      if (text !== "") lines = text.split("\n");
+    } catch {}
+  if (record.ok === true) {
+    if (!options.stream) {
+      const answered = lines.findLast((line) => line.startsWith("b4: server answering on"));
+      if (answered !== undefined) console.log(answered);
+    }
+    console.log(`b4: deploy ${id} built ${record.commit ?? "an unknown commit"}.`);
+    return;
+  }
+  if (!options.stream && lines.length > 0) console.log(lines.slice(-40).join("\n"));
+  // Not fail(): exiting at once can cut off the tail above while stdout is a pipe.
+  console.error(`b4: deploy ${id} failed (${record.exit ?? "no exit"}); its log is ${log}.`);
+  process.exitCode = 1;
+}
+
+// For an agent whose wait ended: waits on a running deploy, or reports the last one,
+// or the one whose id it names.
+async function deployResult() {
+  const named = process.argv[3];
+  if (named !== undefined) {
+    if (readDeployRecord(named) === undefined) fail(`no deploy ${named} in ${deploysDir}.`);
+    const record = await waitForDeploy(named, { stream: false });
+    if (record?.ok === true) shippedLatest(named, record);
+    return;
+  }
+  const running = runningDeployId();
+  // A run counts once it wrote a record; a start that lost a race never does.
+  const id =
+    running ??
+    deployIds()
+      .filter((candidate) => NodeFS.existsSync(deployFile(candidate, "json")))
+      .at(-1);
+  if (id === undefined) fail(`no deploy has run from a job yet; see ${deploysDir}.`);
+  let record = readDeployRecord(id);
+  if (record?.finishedAt === undefined) {
+    // One that just started may not show as running yet; the wait gives it time.
+    console.log(`b4: deploy ${id} hasn't finished; waiting for it.`);
+    record = await waitForDeploy(id, { stream: false });
+  } else {
+    console.log(
+      `b4: deploy ${id} started at ${record.startedAt} and finished at ${record.finishedAt}.`,
+    );
+    reportDeploy(id, record, { stream: false });
+  }
+  if (record?.ok === true) shippedLatest(id, record);
 }
 
 function pinnedNodeVersion(): string {
@@ -229,10 +661,14 @@ async function build() {
   applyAppIcon();
   raiseBuildHeap();
   run("vp", ["i"]);
-  if (isMac) {
+  let desktopCommit = deployedBuild()?.desktopCommit;
+  if (isMac && desktopNeedsBuild(desktopCommit)) {
     run("vp", ["run", "build:desktop"]);
     installDesktopApp();
+    desktopCommit = read("git", ["rev-parse", "HEAD"]);
   } else {
+    if (isMac)
+      console.log(`b4: no client changes since ${desktopCommit?.slice(0, 10)}; keeping B4 Code.`);
     run("vp", ["run", "--filter", "t3", "build"]);
   }
   // doctor compares this with the pinned Node, since native modules only work on
@@ -240,6 +676,7 @@ async function build() {
   const buildRecord = {
     node: process.version,
     commit: read("git", ["rev-parse", "--short", "HEAD"]),
+    ...(desktopCommit === undefined ? {} : { desktopCommit }),
   };
   NodeFS.writeFileSync(buildRecordPath, `${JSON.stringify(buildRecord, null, 2)}\n`);
   if (serviceInstalled()) {
@@ -252,6 +689,26 @@ async function build() {
     await waitForServer(restartedAt);
     removeOtherPinnedNodes();
   } else console.log("b4: built. Run `node fork/b4.ts service` to start it in the background.");
+}
+
+// B4 Code bundles its own client and a copy of the server's build, so only server
+// source and notes leave the installed app as it is. Anything else rebuilds it,
+// including b4.ts, which picks the app icon.
+function desktopNeedsBuild(builtFrom: string | undefined): boolean {
+  if (builtFrom === undefined || !NodeFS.existsSync(installedDesktopApp)) return true;
+  const diff = NodeChildProcess.spawnSync(
+    "git",
+    ["diff", "--name-only", "--no-renames", "-z", builtFrom, "HEAD"],
+    { cwd: repoRoot, encoding: "utf8" },
+  );
+  if (diff.status !== 0) return true;
+  return diff.stdout
+    .split("\0")
+    .filter((file) => file !== "")
+    .some(
+      (file) =>
+        !file.startsWith("apps/server/src/") && !(file.startsWith("fork/") && file.endsWith(".md")),
+    );
 }
 
 // `vp i` runs out of memory under Node's default heap on the Linux devbox, where
@@ -893,7 +1350,7 @@ async function boat() {
   console.log("b4: restart this server (deploy) so agents here list the sandbox tools.");
 }
 
-function deployedBuild(): { node: string; commit: string } | undefined {
+function deployedBuild(): { node: string; commit: string; desktopCommit?: string } | undefined {
   let built: unknown;
   try {
     built = JSON.parse(NodeFS.readFileSync(buildRecordPath, "utf8"));
@@ -903,7 +1360,15 @@ function deployedBuild(): { node: string; commit: string } | undefined {
   if (typeof built !== "object" || built === null) return undefined;
   if (!("node" in built) || typeof built.node !== "string") return undefined;
   if (!("commit" in built) || typeof built.commit !== "string") return undefined;
-  return { node: built.node, commit: built.commit };
+  const desktopCommit =
+    "desktopCommit" in built && typeof built.desktopCommit === "string"
+      ? built.desktopCommit
+      : undefined;
+  return {
+    node: built.node,
+    commit: built.commit,
+    ...(desktopCommit === undefined ? {} : { desktopCommit }),
+  };
 }
 
 function signingIdentityExists(): boolean {
@@ -992,6 +1457,9 @@ function pair() {
 const commands: Record<string, () => void | Promise<void>> = {
   sync,
   deploy,
+  "deploy-result": deployResult,
+  __deployJob: deployJob,
+  __deploy: deployStep,
   __build: build,
   service: () => installService(serviceSettingsFromShell()),
   doctor,
@@ -1001,5 +1469,5 @@ const commands: Record<string, () => void | Promise<void>> = {
 };
 const command = commands[process.argv[2] ?? ""];
 if (command === undefined)
-  fail("usage: node fork/b4.ts <sync|deploy|service|doctor|pair|signing|boat>");
+  fail("usage: node fork/b4.ts <sync|deploy|deploy-result|service|doctor|pair|signing|boat>");
 await command();

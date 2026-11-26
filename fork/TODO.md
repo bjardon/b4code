@@ -11,6 +11,9 @@
 - [x] The Pull requests view lists a fork checkout's own pull requests (its `origin`), not its upstream's
 - [x] Every project shows the Open in button with its own server's editors, and Mac projects (server saved at `127.0.0.1`) open locally instead of over SSH
 - [x] The server runs on its own Node at upstream's pinned version, so Homebrew upgrades can't break threads in `~/Documents`
+- [~] An agent that deploys the server hosting its own session reports the result without a second prompt: the deploy runs as a launchd or systemd job the restart can't kill, and the server resumes the turn. Not yet seen end to end with a live restart, and the systemd job hasn't run on a real Linux box.
+- [x] Mac deploys skip the B4 Code rebuild when only server source or fork notes changed
+- [x] A worktree dev server started from a b4-code session seeds from b4-code's own data, not `~/.t3`
 - [ ] b4-code is the daily driver for freelance and experiment work, and the first customizations come from that use
 - [x] b4-code replaces `t3@latest` in the devbox `bjardon` account (port 3773, tailnet), with the Fleet profile updated to match
 - [x] b4-code replaces `t3@latest` in the devbox `synora` account (port 3775, tailnet), with the Fleet profile updated to match

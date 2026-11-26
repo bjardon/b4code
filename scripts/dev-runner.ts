@@ -626,6 +626,7 @@ const prepareFirstStart = Effect.fn("dev-runner.prepareFirstStart")(function* (i
   readonly mode: DevMode;
   readonly seed: boolean;
   readonly worktreeHome: string | undefined;
+  readonly seedHome: string | undefined;
   readonly env: NodeJS.ProcessEnv;
 }) {
   const fs = yield* FileSystem.FileSystem;
@@ -643,7 +644,13 @@ const prepareFirstStart = Effect.fn("dev-runner.prepareFirstStart")(function* (i
         );
       }
     }
-    const source = path.join(yield* HostProcess.HomeDirectory, ".t3", "userdata", "statev2.sqlite");
+    // A worktree outranks T3CODE_HOME for its own state, but the server that set it is still
+    // the data worth seeding from.
+    const source = path.join(
+      input.seedHome ?? path.join(yield* HostProcess.HomeDirectory, ".t3"),
+      "userdata",
+      "statev2.sqlite",
+    );
     // A V1 state.sqlite counts as data too: the server imports it only while
     // statev2.sqlite is missing, so seeding would hide it.
     if (
@@ -906,6 +913,9 @@ export const runDevRunnerWithInput = Effect.fn("dev-runner.runDevRunnerWithInput
     mode: input.mode,
     seed: input.seed !== false,
     worktreeHome: baseDir === worktreeHome ? worktreeHome : undefined,
+    seedHome: hostEnvironment.T3CODE_HOME?.trim()
+      ? yield* resolveBaseDir(hostEnvironment.T3CODE_HOME)
+      : undefined,
     env,
   });
 
@@ -1027,7 +1037,7 @@ const devRunnerCli = Command.make("dev-runner", {
   ),
   seed: Flag.Boolean("seed").pipe(
     Flag.withDescription(
-      "Seed an empty worktree database from ~/.t3 on first start (read-only, via migrate-dev-db) if the source is at most 500 MiB. On by default; --no-seed or T3CODE_DEV_SEED=0 skips it.",
+      "Seed an empty worktree database from T3CODE_HOME (default ~/.t3) on first start (read-only, via migrate-dev-db) if the source is at most 500 MiB. On by default; --no-seed or T3CODE_DEV_SEED=0 skips it.",
     ),
     Flag.withFallbackConfig(optionalBooleanConfig("T3CODE_DEV_SEED")),
   ),

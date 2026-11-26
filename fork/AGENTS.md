@@ -39,7 +39,7 @@ This file wins where the two conflict:
 
 ## Build, run, verify
 
-- Develop in a worktree with upstream's dev workflow (`vp i`, `vp run dev`). Worktree state stays in its own `.t3`.
+- Develop in a worktree with upstream's dev workflow (`vp i`, `vp run dev`). Worktree state stays in its own `.t3`. Started from a b4-code session, the dev server seeds it from a read-only copy of that server's database instead of `~/.t3`.
 - Verify with upstream's rules: targeted `vp test run`, lint, and typecheck for the files you touched. For `fork/b4.ts`, typecheck it against `tsconfig.base.json` and run `vp lint fork/b4.ts`.
 - Check every user-visible frontend change in the browser before reporting it done, and don't ask first. Seed the worktree's dev server with real data and drive the flow with `test-t3-app`. This overrides upstream's rule to ask before opening browsers.
 
@@ -54,7 +54,7 @@ b4-code runs on three machines, in two accounts on the devbox. Treat all four se
   - `ready`, `idle`, or `running`: it's up. Deploy and leave it running.
   - `stopped`: run `boat resume <id>`, retry SSH until it answers (a few seconds after the resume returns), deploy, then `boat stop <id>`. Don't pass `--ttl`, which replaces the lifetime it keeps for later resumes.
   - If it stops during a deploy, resume it and deploy again.
-- **Mac**: the server at `http://127.0.0.1:3780` (launchd agent `dev.b4code.server`, logs in `~/.b4-code/logs/service.log`) and the B4 Code client at `/Applications/B4 Code.app`. Deploy with `cd ~/.b4-code/src && node fork/b4.ts deploy`, which also rebuilds B4 Code, quitting and reopening it.
+- **Mac**: the server at `http://127.0.0.1:3780` (launchd agent `dev.b4code.server`, logs in `~/.b4-code/logs/service.log`) and the B4 Code client at `/Applications/B4 Code.app`. Deploy with `cd ~/.b4-code/src && node fork/b4.ts deploy`, which also rebuilds B4 Code, quitting and reopening it, unless only server source or fork notes changed.
 
 ## Wrap-up
 
@@ -63,8 +63,8 @@ Implement and verify freely, but ship only after Bruno accepts the work. "Ship i
 1. Verify the accepted user-visible behavior in proportion to the change.
 2. Refresh `fork/TODO.md` so completed, partial, and unfinished outcomes stay accurate.
 3. Commit with a `Co-Authored-By` trailer and land it on `main`. From a worktree, rebase onto `origin/main`, run `git push origin HEAD:main`, then fast-forward the main checkout if it is clean. Opening a pull request is not a completed wrap-up.
-4. Deploy to every machine and devbox account in [Machines](#machines), one at a time, and confirm each run ends with `b4: server answering on ...`. Never run the two devbox deploys together, because each build gets a 4096 MB heap on a 7 GiB machine. Deploy the machine hosting this session last, usually the Mac: its restart ends the session, so from it `deploy` runs in the background and logs to `~/.b4-code/logs/deploy.log`. Before that last deploy, tell Bruno the thread will drop and that the next message brings the result. Each restart also interrupts any agent turns running on that server.
-5. On the next turn, read the deploy log on the session's machine. Shipped means the server in every machine and devbox account runs the change.
+4. Deploy to every machine and devbox account in [Machines](#machines), one at a time, and confirm each run ends with `b4: deploy <id> shipped <commit>` naming the commit you pushed. Never run the two devbox deploys together, because each build gets a 4096 MB heap on a 7 GiB machine. Deploy the machine hosting this session last, usually the Mac. Every `deploy` runs as a launchd or systemd job, logs to `~/.b4-code/logs/deploys/`, and waits for it. From a session on that server, stay in your turn while it waits: run it with your longest command timeout, or in the background and wait on it. The restart kills the command, and once the server is back it resumes your turn, as long as **Continue threads after restarts** is on (the default) and the thread isn't archived, snoozed, or waiting on you. If the wait ends first, run `cd ~/.b4-code/src && node fork/b4.ts deploy-result`, which waits on a running deploy or reports the last one. Each restart also interrupts the other agent turns on that server, which resume the same way.
+5. When the server resumes your turn, run `cd ~/.b4-code/src && node fork/b4.ts deploy-result` instead of deploying again. It exits non-zero if the deploy failed, or if `origin/main` has moved past the commit it built, which happens when your deploy waited on one that was already running. Then deploy again. Shipped means the server in every machine and devbox account runs the change.
 6. Consider the devlog. Append only durable decisions, learnings, or dead ends, under `### YYYY-MM-DD — Title`, with a `<Agent Name> posting on behalf of Bruno` line. Don't repeat what Git history or `TODO.md` already record.
 
 If any step is blocked, report the wrap-up as incomplete and name the blocker. Don't record the work as shipped. Don't add required review, branch protection, or other quality gates unless Bruno asks for them.

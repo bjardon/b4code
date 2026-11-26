@@ -894,6 +894,41 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
         }).pipe(Effect.scoped),
       );
 
+      it.effect("seeds from an ambient T3CODE_HOME instead of ~/.t3", () =>
+        Effect.gen(function* () {
+          const path = yield* Path.Path;
+          const root = yield* makeWorktree;
+          const serverHome = path.join(root, "home", "server-home");
+          const source = path.join(serverHome, "userdata", "statev2.sqlite");
+          NodeFS.mkdirSync(path.dirname(source), { recursive: true });
+          NodeFS.writeFileSync(source, "");
+          const liveHome = path.join(root, "home", ".t3", "userdata");
+          NodeFS.mkdirSync(liveHome, { recursive: true });
+          NodeFS.writeFileSync(path.join(liveHome, "statev2.sqlite"), "");
+
+          const spawned: Array<ReadonlyArray<string>> = [];
+          const spawnerLayer = Layer.succeed(
+            ChildProcessSpawner.ChildProcessSpawner,
+            ChildProcessSpawner.make((command) => {
+              spawned.push((command as unknown as { readonly args: ReadonlyArray<string> }).args);
+              return Effect.succeed(mockProcess(0));
+            }),
+          );
+          yield* runDevRunnerWithInput({ ...devServerInput, t3Home: undefined }).pipe(
+            Effect.provide(Layer.mergeAll(emptyConfigLayer, netServiceLayer, spawnerLayer)),
+            Effect.provideService(HostProcess.Platform, "linux"),
+            Effect.provideService(HostProcess.WorkingDirectory, root),
+            Effect.provideService(HostProcess.HomeDirectory, path.join(root, "home")),
+            Effect.provideService(HostProcess.Environment, { T3CODE_HOME: "~/server-home" }),
+          );
+
+          const seedArgs = spawned.find((args) =>
+            args.some((arg) => arg.endsWith("migrate-dev-db.ts")),
+          );
+          assert.includeMembers([...(seedArgs ?? [])], ["--source", source]);
+        }).pipe(Effect.scoped),
+      );
+
       it.effect.each([
         { sourceBytes: 500 * 1024 * 1024 - 1, shouldSeed: true },
         { sourceBytes: 500 * 1024 * 1024, shouldSeed: true },
